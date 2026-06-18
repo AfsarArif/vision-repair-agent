@@ -1,0 +1,26 @@
+# PCB Delamination Repair Procedure
+
+## Defect Classification
+Delamination is the separation of PCB layers, often appearing as blistering,
+bubbling, or peeling of the board surface. Caused by excessive heat during
+rework, moisture absorption, or manufacturing defects.
+
+## Root Cause Analysis
+1. Check for excessive rework temperature or duration
+2. Verify PCB storage conditions (humidity-controlled)
+3. Inspect solder profile for preheat stage adequacy
+
+## Repair Actions
+1. Assess delamination extent with X-ray or backlight inspection
+2. If minor (<5mm diameter): inject epoxy into the void using a syringe
+3. Clamp the area and cure epoxy per manufacturer instructions
+4. If major: board replacement is recommended
+5. Drill micro-holes at the edge of delamination to stop propagation
+6. Verify repair with continuity and isolation testing
+
+## Parts Required
+- High-temperature epoxy (rated >150°C)
+- Syringe with fine needle
+- Clamping mechanism
+- Micro drill (for stop-drilling)
+- Multimeter for post-repair verification

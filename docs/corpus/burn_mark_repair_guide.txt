@@ -1,0 +1,28 @@
+# Burn Mark Repair Guide — PCB Boards
+
+## Defect Classification
+Burn marks on PCBs are typically caused by electrical overload, short circuits, or
+component failure. The affected area will appear darkened, brown, or black with
+possible carbonization.
+
+## Root Cause Analysis
+1. Check for overcurrent conditions in adjacent components
+2. Inspect solder joints for bridging
+3. Verify voltage regulator output is within specification
+
+## Repair Actions
+1. Power off and discharge all capacitors
+2. Clean the affected area with isopropyl alcohol (99%)
+3. Remove carbonized PCB material using a fiberglass pen
+4. Test continuity of affected traces
+5. If trace is broken: solder a jumper wire (28 AWG) between endpoints
+6. Apply conformal coating to the repaired area
+7. Power on and verify normal operation
+
+## Parts Required
+- Isopropyl alcohol (99%)
+- Fiberglass scratch pen
+- 28 AWG jumper wire
+- Soldering iron + rosin-core solder
+- Conformal coating (acrylic)
+- Multimeter for continuity testing

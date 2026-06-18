@@ -1,0 +1,28 @@
+# Capacitor Crack Detection and Repair
+
+## Defect Classification
+Ceramic capacitor cracks appear as fine, elongated lines on the component body.
+Cracks can be thermal (rapid temperature change), mechanical (board flex), or
+manufacturing defects.
+
+## Root Cause Analysis
+1. Check for board flex during installation
+2. Verify reflow soldering temperature profile
+3. Inspect for mechanical stress points near mounting holes
+
+## Repair Actions
+1. Identify the cracked capacitor by visual inspection under magnification
+2. Measure capacitance — if >10% below rated value, replace
+3. Desolder the cracked capacitor using hot air rework at 350°C
+4. Clean pads with solder wick and isopropyl alcohol
+5. Solder replacement capacitor of identical value and package size
+6. Verify capacitance after installation
+7. Apply conformal coating
+
+## Parts Required
+- Replacement capacitor (same value, voltage rating, and package size)
+- Hot air rework station
+- Solder wick
+- Isopropyl alcohol
+- Conformal coating
+- LCR meter for capacitance verification

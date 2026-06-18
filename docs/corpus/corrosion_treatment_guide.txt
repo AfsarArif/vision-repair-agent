@@ -1,0 +1,29 @@
+# Corrosion Treatment Guide — Electronic Components
+
+## Defect Classification
+Corrosion appears as greenish, white, or bluish deposits on metal surfaces.
+Common on battery contacts, exposed copper, and connectors in humid environments.
+
+## Root Cause Analysis
+1. Identify source of moisture or corrosive agent
+2. Check for battery leakage (alkaline or lithium)
+3. Verify enclosure IP rating is adequate for environment
+
+## Repair Actions
+1. Disconnect power and remove batteries
+2. Neutralize alkaline residue with white vinegar (acetic acid)
+3. Neutralize acid residue with baking soda solution
+4. Scrub affected area with soft-bristle brush
+5. Clean with isopropyl alcohol (99%)
+6. Inspect trace integrity — repair with jumper wire if needed
+7. Apply protective conformal coating
+8. Replace any connectors with corroded pins
+
+## Parts Required
+- White vinegar (for alkaline corrosion)
+- Baking soda (for acid corrosion)
+- Soft-bristle brush
+- Isopropyl alcohol (99%)
+- Jumper wire (if trace repair needed)
+- Conformal coating
+- Replacement connectors (if needed)

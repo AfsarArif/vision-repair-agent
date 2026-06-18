@@ -1,0 +1,25 @@
+# Hardware Serial Number Reference Guide
+
+## Serial Number Formats
+- Model XR-9000: SN prefix + 6 alphanumeric (e.g., SN-XR9821A)
+- Model TB-4500: S/N prefix + 8 digits (e.g., S/N: 20104567)
+- Model VP-2000: 4-4 format (e.g., VP20-00AB)
+- Legacy models: 3-6 alphanumeric format
+
+## Common Serial Number Locations
+1. PCB silkscreen near the edge connector
+2. Barcode label on the bottom of the enclosure
+3. Laser-etched on the main processor chip
+4. Sticker on the power supply module
+
+## Using Serial Numbers for Diagnostics
+The serial number encodes the manufacturing batch, revision, and date code:
+- Characters 1-2: Model code
+- Characters 3-4: Manufacturing week
+- Characters 5-6: Year
+- Remaining: Unit sequence number
+
+When diagnosing a defect, cross-reference the serial number with:
+1. Known issue database for that batch
+2. Field service bulletins
+3. Revision-specific service manuals
