@@ -40,7 +40,7 @@ Field-repair labels from the original plan (`burn_mark`, `crack`, `corrosion`, `
 | **Download** | [github.com/tangsanli5201/DeepPCB](https://github.com/tangsanli5201/DeepPCB) |
 | **Paper** | Tang et al., [arXiv:1902.06197](https://arxiv.org/abs/1902.06197) |
 | **License** | GitHub: MIT. Paper states the set is released for **research**. Treat this repo as a research/demo project; do not ship the images in a commercial product without re-checking. |
-| **Format** | `{id}_test.jpg`, `{id}_temp.jpg`, `{id}.txt` with `x1 y1 x2 y2 type` |
+| **Format** | Images: `{id}_test.jpg` + `{id}_temp.jpg` under `PCBData/groupXXXX/XXXX/`. Labels: `{id}.txt` under sibling `XXXX_not/`, lines `x1 y1 x2 y2 type`. Official split files: `PCBData/trainval.txt` (1,000) and `PCBData/test.txt` (500). List paths look like `group20085/20085/20085000.jpg` (no `_test` suffix) plus the `_not` annotation path. |
 | **Local path** | `data/raw/deeppcb/` |
 
 YOLO conversion: class index is `type - 1` (DeepPCB is 1-based). Run `scripts/prepare_deeppcb.py` after cloning.

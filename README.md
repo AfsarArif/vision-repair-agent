@@ -2,7 +2,7 @@
 
 LangGraph agent that inspects a PCB image, classifies **fabrication defects**, retrieves **public workmanship text**, and self-corrects when confidence is low.
 
-The repo today is a **Phase A harness**: canonical DeepPCB classes, template-diff self-correction, adapter corpus, eval scripts. A trained YOLO detector is **Phase B**. Read [docs/BUILD.md](docs/BUILD.md) for directory map, learning strategy, and eval protocol. Datasets: [docs/DATASETS.md](docs/DATASETS.md). Requirements: [vision_repair_agent_plan.md](vision_repair_agent_plan.md).
+The repo today is a **Phase B** AOI agent: canonical DeepPCB classes, a YOLOv8n detector trained on the official split, template-diff self-correction, adapter corpus, eval scripts. Read [docs/BUILD.md](docs/BUILD.md) for directory map, learning strategy, and eval protocol. Datasets: [docs/DATASETS.md](docs/DATASETS.md). Requirements: [vision_repair_agent_plan.md](vision_repair_agent_plan.md).
 
 ## Architecture
 
@@ -28,7 +28,7 @@ The repo today is a **Phase A harness**: canonical DeepPCB classes, template-dif
 3. If confidence is low: **template absdiff** (DeepPCB) or **silkscreen designator OCR** (FPIC/VisA color boards) — not fictional serial numbers
 4. Re-query RAG and synthesize a diagnosis that cites retrieved sources only
 
-**Flow (what the code does today):** Heuristic or template-diff CV emitting canonical class ids → FAISS over adapter markdown (+ optional downloaded PDFs) → self-correct (template absdiff and/or designator OCR) → DeepSeek. YOLO weights are optional (`CV_BACKEND=yolo`). Accuracy on DeepPCB test is not claimed until Phase B.
+**Flow (what the code does today):** YOLO (`CV_BACKEND=yolo`) when `data/processed/deeppcb/weights/best.pt` exists, otherwise heuristic or template-diff → FAISS over adapter markdown → self-correct (template absdiff and/or designator OCR) → DeepSeek. Tests stay on heuristic. Accuracy is the DeepPCB test mAP logged after `train_detector.py --run`, not a single blended “90%.”
 
 ## Tech Stack
 
@@ -150,7 +150,7 @@ poetry run pytest tests/unit/ -v
 poetry run pytest tests/integration/ -v
 ```
 
-## Eval and data (Phase A)
+## Eval and data
 
 ```bash
 # Template-diff IoU on generated pairs (no download)
@@ -161,10 +161,12 @@ poetry run python scripts/download_public_data.py --corpus --wikipedia
 poetry run python scripts/ingest_corpus.py
 poetry run python evals/run_eval.py --stage rag
 
-# Phase B data (optional)
+# Phase B detector
+poetry install --extras train
 poetry run python scripts/download_public_data.py --deeppcb
 poetry run python scripts/prepare_deeppcb.py
-poetry run python scripts/train_detector.py          # dry run
+poetry run python scripts/train_detector.py --run
+poetry run python evals/run_eval.py --stage cv --backend yolo --ultralytics-val
 ```
 
 Phases, learning strategy, and metrics: [docs/BUILD.md](docs/BUILD.md).
@@ -181,7 +183,7 @@ Phases, learning strategy, and metrics: [docs/BUILD.md](docs/BUILD.md).
 | `SYNC_DATABASE_URL` | — | Sync PostgreSQL connection string |
 | `CORPUS_DIR` | `./docs/corpus` | Directory for RAG documents |
 | `CV_BACKEND` | `heuristic` | `heuristic`, `template_diff`, or `yolo` |
-| `YOLO_WEIGHTS` | (empty) | Path to Phase B detector weights |
+| `YOLO_WEIGHTS` | `data/processed/deeppcb/weights/best.pt` | Path to Phase B detector weights |
 | `CONFIDENCE_THRESHOLD` | `0.75` | Below this, self-correction triggers |
 | `MAX_CORRECTION_RETRIES` | `3` | Max template-diff / OCR re-query retries |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |

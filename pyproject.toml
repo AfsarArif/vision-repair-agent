@@ -43,7 +43,9 @@ dev = [
     "mypy>=1.9",
 ]
 train = [
-    "ultralytics>=8.0",
+    "ultralytics>=8.3,<9",
+    "torch>=2.2",
+    "torchvision>=0.17",
 ]
 
 [build-system]

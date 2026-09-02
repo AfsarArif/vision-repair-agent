@@ -13,25 +13,23 @@ from repair_agent.tools.cv_tools import (
     estimate_confidence,
 )
 from repair_agent.tools.template_diff import localize_defects
-from repair_agent.tools.yolo_detector import detect_yolo
+from repair_agent.tools.yolo_detector import detect_yolo, resolve_weights
 
 
-def _empty_normal() -> dict:
+def _empty_normal(backend: str = "heuristic") -> dict:
     return {
         "defect_type": "normal",
         "defect_confidence": 0.95,
         "defect_bbox": None,
         "cropped_image_bytes": None,
         "detections": [],
-        "cv_backend": settings.CV_BACKEND,
+        "cv_backend": backend,
     }
 
 
 def _from_detections(img, detections: list[Detection], backend: str) -> dict:
     if not detections:
-        result = _empty_normal()
-        result["cv_backend"] = backend
-        return result
+        return _empty_normal(backend)
     ranked = sorted(detections, key=lambda d: float(d.get("score") or 0.0), reverse=True)
     top = ranked[0]
     bbox = top["bbox"]
@@ -52,7 +50,7 @@ def _heuristic_pipeline(img) -> dict:
     thresh = preprocess_for_contour_detection(img)
     contour_results = find_defect_contours(thresh)
     if not contour_results:
-        return _empty_normal()
+        return _empty_normal("heuristic")
 
     largest_contour = max(contour_results, key=lambda r: r[1][2] * r[1][3])
     contour, bbox = largest_contour
@@ -88,10 +86,11 @@ async def cv_node(state: AgentState) -> dict:
         return _from_detections(img, detections, "template_diff")
 
     if backend == "yolo":
-        if not settings.YOLO_WEIGHTS:
+        weights = resolve_weights(settings.YOLO_WEIGHTS or None)
+        if weights is None:
             return _heuristic_pipeline(img)
         try:
-            detections = detect_yolo(img, settings.YOLO_WEIGHTS)
+            detections = detect_yolo(img, str(weights))
         except (FileNotFoundError, ImportError):
             return _heuristic_pipeline(img)
         return _from_detections(img, detections, "yolo")

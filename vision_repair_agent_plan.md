@@ -162,11 +162,12 @@ Implemented in this tree:
 - `evals/run_eval.py` + `evals/rag_queries.jsonl`.
 - [docs/BUILD.md](docs/BUILD.md) — structure, later phases, learning strategy, eval.
 
-### Phase B — Train CV on DeepPCB
+### Phase B — Train CV on DeepPCB (this build)
 
-- Convert DeepPCB boxes to YOLO; train a small detector (YOLOv8n or equivalent) on the **official 1000/500 split**.
-- Implement template-diff as a second proposal source and as the self-correction node.
-- Report mAP on the official test set in `evals/results/`.
+- Convert DeepPCB boxes to YOLO using the official `trainval.txt` / `test.txt` lists; templates stay out of `images/train`.
+- Train YOLOv8n (COCO init) with freeze-then-unfreeze; copy `best.pt` to `data/processed/deeppcb/weights/best.pt`.
+- Template-diff remains the localization baseline and self-correction path.
+- Report mAP on the official test set in `evals/results/` (gitignored).
 
 ### Phase C — Public RAG
 
@@ -233,4 +234,4 @@ This project is a **research / portfolio demo**, not a certified NASA or IPC ins
 
 ---
 
-*Phase A harness is in the tree. YOLO training is Phase B. See [docs/BUILD.md](docs/BUILD.md).*
+*Phase B detector training is in the tree. Weights stay gitignored under `data/processed/`. See [docs/BUILD.md](docs/BUILD.md).*

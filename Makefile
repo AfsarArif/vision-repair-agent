@@ -1,4 +1,4 @@
-.PHONY: up down migrate ingest test run lint clean download prepare-data eval
+.PHONY: up down migrate ingest test run lint clean download prepare-data train eval eval-cv
 
 up:
 	docker-compose up -d
@@ -18,8 +18,14 @@ download:
 prepare-data:
 	python scripts/prepare_deeppcb.py
 
+train:
+	python scripts/train_detector.py --run
+
 eval:
 	python evals/run_eval.py --stage synthetic
+
+eval-cv:
+	python evals/run_eval.py --stage cv --backend yolo --ultralytics-val
 
 test:
 	pytest tests/ -v --asyncio-mode=auto

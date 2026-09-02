@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
+from repair_agent.config import settings  # noqa: E402
 from repair_agent.eval.metrics import (  # noqa: E402
     box_xywh_to_xyxy,
     exact_match,
@@ -21,7 +22,9 @@ from repair_agent.eval.metrics import (  # noqa: E402
     recall_at_k,
 )
 from repair_agent.eval.synthetic import apply_open, apply_short, make_trace_template  # noqa: E402
+from repair_agent.tools.cv_tools import decode_image  # noqa: E402
 from repair_agent.tools.template_diff import localize_defects  # noqa: E402
+from repair_agent.tools.yolo_detector import detect_yolo, resolve_weights  # noqa: E402
 
 RESULTS_DIR = ROOT / "evals" / "results"
 
@@ -119,11 +122,30 @@ def eval_rag(queries_path: Path) -> dict:
     }
 
 
-def eval_cv(gold_path: Path) -> dict:
-    from repair_agent.config import settings
-    from repair_agent.tools.cv_tools import decode_image
-    from repair_agent.tools.template_diff import localize_defects as loc
-    from repair_agent.tools.yolo_detector import detect_yolo
+def _as_xyxy_preds(raw: list[dict]) -> list[dict]:
+    return [
+        {
+            "bbox": box_xywh_to_xyxy(tuple(d["bbox"])),
+            "cls": d.get("cls"),
+            "score": d.get("score", 0.0),
+        }
+        for d in raw
+    ]
+
+
+def eval_cv(
+    gold_path: Path,
+    backend: str,
+    weights: str | None = None,
+    conf: float = 0.25,
+    limit: int | None = None,
+) -> dict:
+    resolved = resolve_weights(weights) if backend == "yolo" else None
+    if backend == "yolo" and resolved is None:
+        raise FileNotFoundError(
+            "YOLO backend requested but no weights file found. "
+            "Train with scripts/train_detector.py --run or pass --weights."
+        )
 
     pred_map: dict[str, list[dict]] = defaultdict(list)
     gt_map: dict[str, list[dict]] = defaultdict(list)
@@ -131,44 +153,53 @@ def eval_cv(gold_path: Path) -> dict:
     for line in gold_path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
             continue
+        if limit is not None and n >= limit:
+            break
         row = json.loads(line)
         image_id = row["image_id"]
         test = decode_image(Path(row["image"]).read_bytes())
         gts = [{"bbox": tuple(b["bbox"]), "cls": b["cls"]} for b in row.get("boxes", [])]
         gt_map[image_id] = gts
-        if settings.CV_BACKEND == "yolo" and settings.YOLO_WEIGHTS:
-            raw = detect_yolo(test, settings.YOLO_WEIGHTS)
-            preds = [
-                {
-                    "bbox": box_xywh_to_xyxy(tuple(d["bbox"])),
-                    "cls": d.get("cls"),
-                    "score": d.get("score", 0.0),
-                }
-                for d in raw
-            ]
-        else:
+        if backend == "yolo":
+            raw = detect_yolo(test, str(resolved), conf=conf)
+        elif backend in ("template_diff", "heuristic"):
             template = decode_image(Path(row["template"]).read_bytes())
-            raw = loc(test, template)
-            preds = [
-                {
-                    "bbox": box_xywh_to_xyxy(tuple(d["bbox"])),
-                    "cls": d.get("cls"),
-                    "score": d.get("score", 0.0),
-                }
-                for d in raw
-            ]
-        pred_map[image_id] = preds
+            raw = localize_defects(test, template)
+        else:
+            raise ValueError(f"Unknown CV eval backend: {backend}")
+        pred_map[image_id] = _as_xyxy_preds(raw)
         n += 1
 
-    class_aware = settings.CV_BACKEND == "yolo"
+    class_aware = backend == "yolo"
     metrics = mean_average_precision(pred_map, gt_map, class_aware=class_aware)
     metrics.update(
         {
             "stage": "cv",
             "n_images": n,
-            "backend": settings.CV_BACKEND,
+            "backend": backend,
             "class_aware": class_aware,
             "gold": str(gold_path),
+            "weights": str(resolved) if resolved else None,
+            "conf": conf,
+        }
+    )
+    return metrics
+
+
+def eval_ultralytics_val(data_yaml: Path, weights: Path, split: str = "test") -> dict:
+    # Optional `train` extra — not imported at module load so pytest stays light.
+    from ultralytics import YOLO
+
+    model = YOLO(str(weights))
+    result = model.val(data=str(data_yaml), split=split, plots=False, verbose=False)
+    raw = getattr(result, "results_dict", None) or {}
+    metrics = {str(k): float(v) for k, v in raw.items() if isinstance(v, (int, float))}
+    metrics.update(
+        {
+            "stage": "cv_ultralytics",
+            "split": split,
+            "weights": str(weights),
+            "data": str(data_yaml),
         }
     )
     return metrics
@@ -210,6 +241,20 @@ def main() -> int:
         type=Path,
         default=ROOT / "evals" / "rag_queries.jsonl",
     )
+    parser.add_argument(
+        "--backend",
+        choices=["heuristic", "template_diff", "yolo"],
+        default=None,
+        help="CV backend for --stage cv (default: yolo if weights exist, else template_diff)",
+    )
+    parser.add_argument("--weights", type=Path, default=None)
+    parser.add_argument("--conf", type=float, default=0.25)
+    parser.add_argument("--limit", type=int, default=None, help="Score at most N gold images")
+    parser.add_argument(
+        "--ultralytics-val",
+        action="store_true",
+        help="Also run Ultralytics val() on data/processed/deeppcb/deeppcb.yaml",
+    )
     args = parser.parse_args()
 
     stages = ["synthetic", "rag", "cv", "ocr"] if args.stage == "all" else [args.stage]
@@ -228,17 +273,42 @@ def main() -> int:
                 reports.append({"stage": "rag", "skipped": True, "error": str(exc)})
         elif stage == "cv":
             gold = args.gold or (ROOT / "data" / "processed" / "deeppcb" / "gold_test.jsonl")
+            weights_arg = str(args.weights) if args.weights else (settings.YOLO_WEIGHTS or None)
+            resolved = resolve_weights(weights_arg)
+            backend = args.backend
+            if backend is None:
+                backend = "yolo" if resolved is not None else "template_diff"
             if not gold.exists():
                 print(f"missing {gold}; run prepare_deeppcb.py or use --stage synthetic")
                 reports.append({"stage": "cv", "skipped": True, "gold": str(gold)})
             else:
-                reports.append(eval_cv(gold))
+                try:
+                    reports.append(
+                        eval_cv(
+                            gold,
+                            backend=backend,
+                            weights=weights_arg,
+                            conf=args.conf,
+                            limit=args.limit,
+                        )
+                    )
+                except (FileNotFoundError, ImportError) as exc:
+                    print(f"CV eval skipped: {exc}")
+                    reports.append({"stage": "cv", "skipped": True, "error": str(exc)})
+            if args.ultralytics_val:
+                yaml_path = ROOT / "data" / "processed" / "deeppcb" / "deeppcb.yaml"
+                if resolved is None or not yaml_path.exists():
+                    reports.append({"stage": "cv_ultralytics", "skipped": True})
+                else:
+                    reports.append(eval_ultralytics_val(yaml_path, resolved))
         elif stage == "ocr":
             if not args.gold or not args.gold.exists():
                 print("OCR eval needs --gold JSONL with image + designator fields")
                 reports.append({"stage": "ocr", "skipped": True})
             else:
                 reports.append(eval_ocr(args.gold))
+        else:
+            raise ValueError(f"Unknown eval stage: {stage}")
 
     _write_report("latest", {"reports": reports})
     return 0

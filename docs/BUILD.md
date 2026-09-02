@@ -48,6 +48,7 @@ vision-repair-agent/
 ├── src/repair_agent/
 │   ├── taxonomy.py              ← canonical classes + DeepPCB/PKU maps
 │   ├── config.py                ← env (DeepSeek, CV_BACKEND, paths)
+│   ├── data/deeppcb.py          ← official split + YOLO export layout
 │   ├── agent/                   ← LangGraph: state, nodes, edges, graph
 │   ├── tools/                   ← OpenCV, template-diff, OCR, YOLO loader
 │   ├── rag/                     ← ingest, FAISS retrieve, prompts
@@ -83,52 +84,51 @@ Downloaded images and PDFs never go in git.
 
 ## 3. Build phases
 
-### Phase A — Harness (this build)
+### Phase A — Harness
 
 **Goal:** Make the project honest and measurable without training a detector.
 
-Shipped:
+Shipped in an earlier commit:
 
 - Canonical classes (`open`, `short`, `mousebite`, `spur`, `spurious_copper`, `pin_hole`, `missing_hole`, `normal`). Heuristic CV still runs for tests/demo but **emits these ids**, not burn/corrosion.
-- `CV_BACKEND=heuristic|template_diff|yolo` (default `heuristic`).
+- `CV_BACKEND=heuristic|template_diff|yolo` (default `heuristic` so pytest does not need weights).
 - Template-diff localizer + self-correct node (template refine and/or designator OCR).
 - Adapter markdown in `docs/corpus/adapters/`.
 - Download / prepare scripts; eval runner; RAG gold queries.
-- `docs/BUILD.md` (this document).
 
 **Not in Phase A:** a trained YOLO, ingested NASA PDFs (scripts only), Postgres in the API.
-
-Run:
 
 ```bash
 poetry install
 poetry run pytest tests/ -v
 poetry run python evals/run_eval.py --stage synthetic
-# optional, needs network:
-poetry run python scripts/download_public_data.py --corpus --wikipedia
-poetry run python scripts/ingest_corpus.py
-poetry run python evals/run_eval.py --stage rag
 ```
 
-### Phase B — Detector learning
+### Phase B — Detector learning (this build)
 
 **Goal:** Replace color heuristics with a detector trained on **DeepPCB’s official split**.
 
-**Data.** 1,000 train pairs / 500 test pairs from Tang et al. (arXiv:1902.06197). Convert with `scripts/prepare_deeppcb.py`. **Do not** put PKU-Market-PCB or VisA into the training set. PKU is transfer eval only; VisA is an optional anomaly gate (different label space).
+Shipped:
 
-**Carve validation from train only.** Example: 850 train / 150 val from the 1,000, freeze the official 500 as test. Tune on val; report test **once**.
+- `repair_agent.data.deeppcb` reads the real GitHub layout (`*_test.jpg` + sibling `*_not` labels + `trainval.txt` / `test.txt`).
+- `prepare_deeppcb.py` writes **test images only** under `images/{split}/`. Templates go to `templates/{split}/` so Ultralytics does not treat unlabeled templates as train images. Label xywh uses each file’s actual size, not a hardcoded 640.
+- `train_detector.py --run`: auto `cuda`/`mps`/`cpu`, freeze backbone 3 epochs then unfreeze, AdamW + cosine, no HSV/mosaic, copy `best.pt` to `data/processed/deeppcb/weights/best.pt`, report official **test** mAP once.
+- YOLO model cache in `yolo_detector.py`. `CV_BACKEND=yolo` resolves `YOLO_WEIGHTS` or that default path; missing weights fall back to heuristic.
+- `evals/run_eval.py --stage cv --backend yolo --weights ... --ultralytics-val`.
 
-**Model.** YOLOv8n (or equivalent nano detector), **COCO-pretrained backbone**, fine-tune all heads. Six foreground classes; DeepPCB type `1..6` maps to YOLO `0..5` via `taxonomy.DEEPPCB_ID_TO_CLASS`. Input 640×640 (native DeepPCB size).
+**Data.** 1,000 trainval pairs / 500 test pairs from Tang et al. (arXiv:1902.06197). **Do not** put PKU-Market-PCB or VisA into the training set.
 
-**Why transfer learning.** 1,000 images is small. A COCO-initialized nano model learns “box + texture” faster than training from scratch. We are not using ImageNet classification weights as the final head — detection heads are trained on DeepPCB boxes.
+**Carve validation from train only.** ~15% of the official 1,000 (about 850/150). Freeze the official 500 as test. Tune on val; report test **once**.
 
-**Loss.** Ultralytics default: box regression + classification + DFL. No extra re-ID or metric learning.
+**Model.** YOLOv8n, **COCO-pretrained**, six foreground classes; DeepPCB type `1..6` → YOLO `0..5` via `taxonomy.DEEPPCB_ID_TO_CLASS`. Input 640×640.
 
-**Augmentation (binary copper, not photos).** Horizontal/vertical flip, small translate/scale. **No hue/saturation jitter** (images are already thresholded). Mosaic/mixup off or very light — they invent impossible trace geometry.
+**Why transfer learning.** 1,000 images is small. A COCO-initialized nano model learns “box + texture” faster than training from scratch.
 
-**Optimization.** ~50–100 epochs, AdamW, cosine LR, early stopping on val **mAP@0.5**, patience ~20. Optional: freeze backbone 3 epochs, then unfreeze.
+**Loss.** Ultralytics default: box regression + classification + DFL.
 
-**Not a class-imbalance trick we rely on.** DeepPCB puts several defects per image (~3–12). If one class lags on val, class weights are allowed; do not oversample PKU to “fix” it.
+**Augmentation (binary copper, not photos).** Horizontal/vertical flip, small translate/scale. **No hue/saturation jitter**. Mosaic/mixup off.
+
+**Optimization.** 50 epochs default, AdamW, cosine LR, early stopping on val **mAP@0.5**, patience ~20. Freeze first 10 YOLO layers for 3 epochs, then train the rest unfrozen.
 
 **Two systems, not one.**
 
@@ -137,19 +137,19 @@ poetry run python evals/run_eval.py --stage rag
 | YOLO | Yes | Primary CV when `CV_BACKEND=yolo` |
 | Template absdiff | No | Localization baseline; self-correct when a template is present |
 
-Template-diff does not output a class. Eval reports **localization** (IoU / class-agnostic AP) for it, and **mAP@0.5** for YOLO.
-
-**Selection rule.** Keep the checkpoint with best val mAP@0.5. Point `YOLO_WEIGHTS` at it. Never choose weights using the official test set.
+**Selection rule.** Keep the checkpoint with best val mAP@0.5 (`weights/best.pt`). Never choose weights using the official test set.
 
 ```bash
 poetry install --extras train
 poetry run python scripts/download_public_data.py --deeppcb
 poetry run python scripts/prepare_deeppcb.py
 poetry run python scripts/train_detector.py --run
-poetry run python evals/run_eval.py --stage cv --gold data/processed/deeppcb/gold_test.jsonl
+poetry run python evals/run_eval.py --stage cv --backend yolo --ultralytics-val
 ```
 
-First-pass gate: **mAP@0.5 ≥ 0.85** on the official 500. The DeepPCB paper’s 98.6% is a published upper bound from a different architecture, not our claim.
+Point `.env` at the weights (`CV_BACKEND=yolo`, `YOLO_WEIGHTS=data/processed/deeppcb/weights/best.pt`). Tests stay on heuristic.
+
+First-pass gate: **mAP@0.5 ≥ 0.85** on the official 500. The DeepPCB paper’s 98.6% is a published upper bound from a different architecture, not our claim. Logged numbers live in gitignored `evals/results/train_summary.json`.
 
 ### Phase C — Public RAG
 
@@ -186,7 +186,7 @@ Four stages, four numbers. Never average them into one “90%.”
 
 - `--stage synthetic` — no downloads: template-diff IoU on generated pairs (CI).
 - `--stage rag` — needs a FAISS index (ingest adapters at minimum).
-- `--stage cv` — needs `--gold` from `prepare_deeppcb.py`.
+- `--stage cv` — needs `--gold` from `prepare_deeppcb.py`. Pass `--backend yolo` after training. `--ultralytics-val` adds Ultralytics’ own mAP.
 - `--stage ocr` — skipped until FPIC gold exists.
 
 **Leakage rules.** Test images never in training. Val is a subset of DeepPCB train, not of test. PKU never in the YOLO loss. Wikipedia/NASA text is not used as CV labels.
@@ -204,7 +204,7 @@ Results write to `evals/results/` (gitignored). Commit the script and the gold q
 | Phase | Done when |
 |-------|-----------|
 | A | `pytest` green; `run_eval.py --stage synthetic` prints IoU; adapters exist; download/prepare scripts run |
-| B | YOLO weights + test mAP@0.5 logged; heuristic is fallback only |
+| B | YOLO weights at `data/processed/deeppcb/weights/best.pt`; test mAP@0.5 logged in `evals/results/`; heuristic is fallback only |
 | C | Recall@5 ≥ 0.80 on `rag_queries.jsonl` |
 | D | Designator exact-match ≥ 0.70 on FPIC gold |
 | E | Diagnose sessions survive process restart |

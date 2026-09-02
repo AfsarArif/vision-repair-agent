@@ -60,11 +60,19 @@ def download_file(url: str, dest: Path) -> None:
         dest.write_bytes(response.read())
 
 
+def _count_deeppcb_tests(root: Path) -> int:
+    return sum(1 for _ in root.rglob("*_test.jpg")) if root.exists() else 0
+
+
 def clone_deeppcb() -> None:
     dest = DATA_RAW / "deeppcb"
     dest.parent.mkdir(parents=True, exist_ok=True)
-    if (dest / ".git").exists() or (dest / "PCBData").exists():
-        print(f"skip clone (exists): {dest}")
+    existing = _count_deeppcb_tests(dest)
+    if existing >= 1000:
+        print(f"skip clone ({existing} test images): {dest}")
+        return
+    if dest.exists() and any(dest.iterdir()):
+        print(f"DeepPCB dir exists but only {existing} test images; leaving {dest} as-is")
         return
     subprocess.run(
         [
@@ -77,6 +85,13 @@ def clone_deeppcb() -> None:
         ],
         check=True,
     )
+    n = _count_deeppcb_tests(dest)
+    print(f"DeepPCB test images: {n}")
+    if n == 0:
+        raise OSError(
+            "Clone succeeded but no *_test.jpg files were found. "
+            "Check the upstream repo layout in docs/DATASETS.md."
+        )
 
 
 def download_wikipedia() -> None:

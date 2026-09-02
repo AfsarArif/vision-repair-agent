@@ -49,3 +49,8 @@ data/processed/
 docs/corpus/pdfs/
 docs/corpus/wikipedia/
 evals/results/*.json
+
+# Ultralytics COCO init weights downloaded at train time
+yolov8*.pt
+yolo11*.pt
+runs/

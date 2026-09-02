@@ -9,6 +9,13 @@ import numpy as np
 import pytest
 
 from repair_agent.agent.state import AgentState, initial_agent_state
+from repair_agent.config import settings
+
+
+@pytest.fixture(autouse=True)
+def _force_heuristic_cv(monkeypatch):
+    """Keep unit tests on the heuristic backend even if .env sets CV_BACKEND=yolo."""
+    monkeypatch.setattr(settings, "CV_BACKEND", "heuristic")
 
 
 def create_test_image(
