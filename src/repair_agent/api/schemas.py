@@ -5,6 +5,12 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
+class DetectionOut(BaseModel):
+    cls: str | None = None
+    bbox: tuple[int, int, int, int] | None = None
+    score: float | None = None
+
+
 class DiagnoseResponse(BaseModel):
     """Response model for the /diagnose endpoint."""
 
@@ -12,7 +18,14 @@ class DiagnoseResponse(BaseModel):
     diagnosis: str = Field(..., description="Full diagnostic report text")
     defect_type: Optional[str] = Field(None, description="Detected defect classification")
     defect_confidence: Optional[float] = Field(None, description="CV confidence score (0.0-1.0)")
-    serial_number: Optional[str] = Field(None, description="Extracted hardware serial number")
+    serial_number: Optional[str] = Field(
+        None, description="Silkscreen designator or serial if OCR found one"
+    )
+    designator: Optional[str] = Field(None, description="PCB reference designator if detected")
+    correction_mode: Optional[str] = Field(
+        None, description="template_diff, designator_ocr, both, or none"
+    )
+    detections: list[DetectionOut] = Field(default_factory=list)
     self_correction_triggered: bool = Field(
         False, description="Whether the self-correction loop was triggered"
     )

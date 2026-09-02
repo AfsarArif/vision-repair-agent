@@ -42,25 +42,20 @@ class TestDiagnoseEndpoint:
             async def ainvoke(self, messages):
                 return type("Response", (), {"content": "Mock diagnosis report."})()
 
-        with patch(
-            "repair_agent.api.routes.diagnose.aretrieve",
-            new=AsyncMock(return_value=mock_docs),
-        ):
-            # Need to patch the import path used in the routes module
-            with patch("repair_agent.agent.nodes.rag_node.aretrieve", new=AsyncMock(return_value=mock_docs)):
-                with patch(
-                    "repair_agent.agent.nodes.diagnosis_node.ChatOpenAI",
-                    return_value=MockLLM(),
-                ):
-                    response = await async_client.post(
-                        "/api/v1/diagnose",
-                        files={"file": ("test.png", burn_mark_image_bytes, "image/png")},
-                    )
-                    assert response.status_code == 200
-                    data = response.json()
-                    assert "session_id" in data
-                    assert "diagnosis" in data
-                    assert len(data["diagnosis"]) > 0
+        with patch("repair_agent.agent.nodes.rag_node.aretrieve", new=AsyncMock(return_value=mock_docs)):
+            with patch(
+                "repair_agent.agent.nodes.diagnosis_node.ChatOpenAI",
+                return_value=MockLLM(),
+            ):
+                response = await async_client.post(
+                    "/api/v1/diagnose",
+                    files={"file": ("test.png", burn_mark_image_bytes, "image/png")},
+                )
+                assert response.status_code == 200
+                data = response.json()
+                assert "session_id" in data
+                assert "diagnosis" in data
+                assert len(data["diagnosis"]) > 0
 
     @pytest.mark.asyncio
     async def test_diagnose_invalid_file_type(self, async_client):

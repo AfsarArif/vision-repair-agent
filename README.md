@@ -1,32 +1,34 @@
 # Vision-Driven Self-Correcting Repair Agent
 
-A production-ready agentic AI system that autonomously diagnoses hardware defects by chaining Computer Vision (CV), OCR, and Retrieval-Augmented Generation (RAG) in a self-correcting feedback loop — with stateful memory across multi-step tool calls.
+LangGraph agent that inspects a PCB image, classifies **fabrication defects**, retrieves **public workmanship text**, and self-corrects when confidence is low.
+
+The repo today is a **Phase A harness**: canonical DeepPCB classes, template-diff self-correction, adapter corpus, eval scripts. A trained YOLO detector is **Phase B**. Read [docs/BUILD.md](docs/BUILD.md) for directory map, learning strategy, and eval protocol. Datasets: [docs/DATASETS.md](docs/DATASETS.md). Requirements: [vision_repair_agent_plan.md](vision_repair_agent_plan.md).
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    LangGraph Agent Graph                    │
-│                                                             │
-│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌───────┐ │
-│  │ CV Node  │───▶│RAG Query │───▶│ OCR Node │───▶│  RAG  │ │
-│  │(defect   │    │ (initial │    │(serial # │    │(re-   │ │
-│  │ detect)  │    │ lookup)  │    │ extract) │    │query) │ │
-│  └──────────┘    └──────────┘    └──────────┘    └───────┘ │
-│        │                │               │              │    │
-│        └────────────────┴───────────────┴──────────────┘   │
-│                     Shared Agent State                      │
-│              (PostgreSQL-backed checkpointing)              │
-└─────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                     LangGraph Agent Graph                        │
+│                                                                  │
+│  ┌──────────┐   ┌──────────┐   ┌────────────┐   ┌───────┐      │
+│  │ CV Node  │──▶│RAG Query │──▶│ Self-correct│──▶│  RAG  │      │
+│  │(DeepPCB  │   │ (class   │   │ template    │   │(re-   │      │
+│  │ classes) │   │  lookup) │   │ diff or OCR │   │query) │      │
+│  └──────────┘   └──────────┘   └────────────┘   └───────┘      │
+│        │               │              │              │          │
+│        └───────────────┴──────────────┴──────────────┘          │
+│                      Shared Agent State                         │
+│              (MemorySaver today; Postgres optional)             │
+└──────────────────────────────────────────────────────────────────┘
 ```
 
-**Flow:**
-1. Image input → CV node detects defect region and type
-2. Initial RAG query with defect classification → retrieves candidate docs
-3. If confidence < threshold → self-correction triggers
-4. OCR node crops image region → extracts serial number
-5. Re-queries RAG with serial number + defect type for precision results
-6. Final diagnosis output with evidence citations from corpus
+**Flow (target):**
+1. Image (+ optional DeepPCB-style template) → detector proposes boxes in `{open, short, mousebite, spur, spurious_copper, pin_hole, missing_hole, normal}`
+2. RAG retrieves NASA / ESA / Wikipedia / arXiv passages for that class
+3. If confidence is low: **template absdiff** (DeepPCB) or **silkscreen designator OCR** (FPIC/VisA color boards) — not fictional serial numbers
+4. Re-query RAG and synthesize a diagnosis that cites retrieved sources only
+
+**Flow (what the code does today):** Heuristic or template-diff CV emitting canonical class ids → FAISS over adapter markdown (+ optional downloaded PDFs) → self-correct (template absdiff and/or designator OCR) → DeepSeek. YOLO weights are optional (`CV_BACKEND=yolo`). Accuracy on DeepPCB test is not claimed until Phase B.
 
 ## Tech Stack
 
@@ -35,17 +37,17 @@ A production-ready agentic AI system that autonomously diagnoses hardware defect
 | Agent Orchestration | LangGraph |
 | LLM | DeepSeek (`deepseek-chat`, OpenAI-compatible) |
 | Embeddings | Local `all-MiniLM-L6-v2` (sentence-transformers) |
-| RAG Framework | LangChain + pgvector |
-| Computer Vision | OpenCV + Pillow |
-| OCR | Tesseract (pytesseract) |
-| Vector Store | PostgreSQL + pgvector |
-| State Persistence | PostgreSQL (LangGraph checkpointer) |
+| RAG Framework | LangChain + FAISS (pgvector optional) |
+| Computer Vision | OpenCV heuristic or template-diff; YOLO when weights exist |
+| OCR | Tesseract — designators (`R12`) plus legacy serial fixtures |
+| Vector Store | FAISS on disk (Postgres optional) |
+| State Persistence | In-memory MemorySaver (Postgres checkpointer optional) |
 | API Layer | FastAPI |
 
 ## Prerequisites
 
 - **Python 3.11+** with Poetry
-- **Docker** (for PostgreSQL + pgvector)
+- **Docker** (optional — only if you want Postgres/pgvector; the API runs with in-memory checkpointing and FAISS)
 - **Tesseract OCR** installed locally:
   ```bash
   # macOS
@@ -103,10 +105,10 @@ curl -X POST http://localhost:8000/api/v1/diagnose \
 ```json
 {
   "session_id": "550e8400-e29b-41d4-a716-446655440000",
-  "diagnosis": "## Defect Classification\nBurn mark detected on PCB...",
-  "defect_type": "burn_mark",
-  "defect_confidence": 0.87,
-  "serial_number": "SN-XR9821A",
+      "diagnosis": "## Defect Classification\nOpen circuit on copper trace...",
+      "defect_type": "open",
+      "defect_confidence": 0.87,
+      "serial_number": "R12",
   "self_correction_triggered": true,
   "correction_attempts": 1,
   "rag_documents_used": 5
@@ -119,15 +121,21 @@ curl -X POST http://localhost:8000/api/v1/diagnose \
 curl http://localhost:8000/api/v1/health
 ```
 
-## Adding Documents to Corpus
+## Data and corpus
 
-Drop PDFs or `.txt` files into `docs/corpus/` and run:
+Public datasets, licenses, and download URLs: **[docs/DATASETS.md](docs/DATASETS.md)**.
+
+- **Vision:** [DeepPCB](https://github.com/tangsanli5201/DeepPCB) (1,500 template/test pairs, 6 classes). Optional: PKU-Market-PCB, VisA PCB1–4.
+- **RAG:** NASA-STD-8739.6B / 8739.1B, ECSS-Q-ST-70-61C, cancelled-but-public NASA-STD-8739.3, arXiv dataset papers, Wikipedia (CC BY-SA). Not IPC-A-610 (paid).
+- **Do not commit** downloads. They belong in gitignored `data/raw/` and `docs/corpus/pdfs/`.
+
+The five files already in `docs/corpus/` are **CI stubs** (burn/corrosion/serial). Replace them with adapter pages that map DeepPCB class names onto the public standards.
 
 ```bash
 make ingest
 ```
 
-The ingestion is incremental — previously ingested files are skipped.
+Ingestion is incremental — previously ingested files are skipped.
 
 ## Running Tests
 
@@ -142,6 +150,25 @@ poetry run pytest tests/unit/ -v
 poetry run pytest tests/integration/ -v
 ```
 
+## Eval and data (Phase A)
+
+```bash
+# Template-diff IoU on generated pairs (no download)
+make eval
+
+# Public PDFs + Wikipedia extracts (gitignored)
+poetry run python scripts/download_public_data.py --corpus --wikipedia
+poetry run python scripts/ingest_corpus.py
+poetry run python evals/run_eval.py --stage rag
+
+# Phase B data (optional)
+poetry run python scripts/download_public_data.py --deeppcb
+poetry run python scripts/prepare_deeppcb.py
+poetry run python scripts/train_detector.py          # dry run
+```
+
+Phases, learning strategy, and metrics: [docs/BUILD.md](docs/BUILD.md).
+
 ## Configuration Reference
 
 | Variable | Default | Description |
@@ -153,8 +180,10 @@ poetry run pytest tests/integration/ -v
 | `DATABASE_URL` | — | Async PostgreSQL connection string |
 | `SYNC_DATABASE_URL` | — | Sync PostgreSQL connection string |
 | `CORPUS_DIR` | `./docs/corpus` | Directory for RAG documents |
+| `CV_BACKEND` | `heuristic` | `heuristic`, `template_diff`, or `yolo` |
+| `YOLO_WEIGHTS` | (empty) | Path to Phase B detector weights |
 | `CONFIDENCE_THRESHOLD` | `0.75` | Below this, self-correction triggers |
-| `MAX_CORRECTION_RETRIES` | `3` | Max OCR + re-query retries |
+| `MAX_CORRECTION_RETRIES` | `3` | Max template-diff / OCR re-query retries |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
 
 ## Project Structure
@@ -165,8 +194,15 @@ vision-repair-agent/
 ├── pyproject.toml
 ├── docker-compose.yml
 ├── Makefile
-├── docs/corpus/           # RAG document corpus
+├── docs/
+│   ├── BUILD.md           # Structure, phases, learning, eval
+│   ├── DATASETS.md        # Public data registry
+│   └── corpus/            # Adapters + CI stubs; PDFs gitignored
+├── evals/                 # Gold queries + run_eval.py
 ├── scripts/
+│   ├── download_public_data.py
+│   ├── prepare_deeppcb.py
+│   ├── train_detector.py
 │   ├── ingest_corpus.py
 │   └── seed_test_docs.py
 ├── src/repair_agent/

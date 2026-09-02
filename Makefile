@@ -1,4 +1,4 @@
-.PHONY: up down migrate ingest test run lint clean
+.PHONY: up down migrate ingest test run lint clean download prepare-data eval
 
 up:
 	docker-compose up -d
@@ -12,6 +12,15 @@ migrate:
 ingest:
 	python scripts/ingest_corpus.py
 
+download:
+	python scripts/download_public_data.py --corpus --wikipedia
+
+prepare-data:
+	python scripts/prepare_deeppcb.py
+
+eval:
+	python evals/run_eval.py --stage synthetic
+
 test:
 	pytest tests/ -v --asyncio-mode=auto
 
@@ -19,7 +28,7 @@ run:
 	uvicorn repair_agent.api.main:app --reload --port 8000
 
 lint:
-	ruff check src/ tests/
+	ruff check src/ tests/ evals/ scripts/
 	mypy src/
 
 clean:

@@ -1,0 +1,7 @@
+{"id": "q-open", "query": "Bare-board PCB open circuit broken trace e-test continuity gap disposition scrap or jumper", "expected_source_ids": ["adapter-open"], "k": 5}
+{"id": "q-short", "query": "Unintended copper bridge short between nets isolate extra copper template absdiff", "expected_source_ids": ["adapter-short"], "k": 5}
+{"id": "q-mousebite", "query": "Mousebite nick in trace edge remaining copper width DeepPCB class", "expected_source_ids": ["adapter-mousebite"], "k": 5}
+{"id": "q-spur", "query": "Spur unwanted protrusion attached to a trace under-etch spacing", "expected_source_ids": ["adapter-spur"], "k": 5}
+{"id": "q-copper", "query": "Spurious copper isolated island extra copper not attached to a net", "expected_source_ids": ["adapter-spurious_copper"], "k": 5}
+{"id": "q-pinhole", "query": "Pin-hole void in a copper pad or trace DeepPCB class 6", "expected_source_ids": ["adapter-pin_hole"], "k": 5}
+{"id": "q-missing-hole", "query": "Missing hole expected drill absent PKU-Market-PCB class not DeepPCB pin-hole", "expected_source_ids": ["adapter-missing_hole"], "k": 5}

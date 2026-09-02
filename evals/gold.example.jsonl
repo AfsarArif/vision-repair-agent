@@ -1,0 +1,1 @@
+{"image_id": "example_0001", "image": "data/processed/deeppcb/images/test/example_0001.jpg", "template": "data/processed/deeppcb/images/test/example_0001_temp.jpg", "split": "deeppcb_test", "boxes": [{"bbox": [10, 20, 40, 50], "cls": "open"}], "designator": null, "expected_doc_ids": ["adapter-open"]}

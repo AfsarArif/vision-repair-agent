@@ -5,27 +5,12 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from repair_agent.agent.graph import get_agent_sync
-from repair_agent.agent.state import AgentState
+from repair_agent.agent.state import AgentState, initial_agent_state
 
 
 def _make_state(image_bytes: bytes) -> AgentState:
     """Create a clean initial state for graph execution."""
-    return {
-        "image_bytes": image_bytes,
-        "image_path": None,
-        "defect_type": None,
-        "defect_confidence": None,
-        "defect_bbox": None,
-        "cropped_image_bytes": None,
-        "serial_number": None,
-        "ocr_confidence": None,
-        "rag_documents": None,
-        "rag_query": None,
-        "diagnosis": None,
-        "correction_attempts": 0,
-        "self_correction_triggered": False,
-        "messages": [],
-    }
+    return initial_agent_state(image_bytes)
 
 
 def _make_mock_rag_docs():

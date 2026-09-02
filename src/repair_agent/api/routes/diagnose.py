@@ -7,8 +7,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from repair_agent.api.schemas import DiagnoseResponse, ErrorResponse
 from repair_agent.agent.graph import get_agent_sync
-from repair_agent.agent.state import AgentState
-from repair_agent.config import settings
+from repair_agent.agent.state import initial_agent_state
 
 logger = structlog.get_logger()
 router = APIRouter()
@@ -26,11 +25,11 @@ async def diagnose(file: UploadFile = File(...)):
     """Submit a hardware image for automated diagnosis.
 
     The image is processed through:
-    1. Computer Vision — defect detection and classification
-    2. RAG — initial document retrieval
-    3. OCR (conditional) — serial number extraction if confidence is low
-    4. RAG (corrected) — precise document re-query with serial number
-    5. Diagnosis synthesis — GPT-4o generates a structured report
+    1. Computer Vision — heuristic, template-diff, or YOLO (see CV_BACKEND)
+    2. RAG — retrieve public workmanship chunks for the defect class
+    3. Self-correct (conditional) — template absdiff and/or designator OCR
+    4. RAG (corrected) — re-query with designator if found
+    5. Diagnosis — DeepSeek, citing retrieved sources only
 
     Args:
         file: UploadFile of the hardware image (PNG, JPEG, BMP, TIFF).
@@ -57,23 +56,7 @@ async def diagnose(file: UploadFile = File(...)):
 
     try:
         agent = get_agent_sync()
-
-        initial_state: AgentState = {
-            "image_bytes": image_bytes,
-            "image_path": None,
-            "defect_type": None,
-            "defect_confidence": None,
-            "defect_bbox": None,
-            "cropped_image_bytes": None,
-            "serial_number": None,
-            "ocr_confidence": None,
-            "rag_documents": None,
-            "rag_query": None,
-            "diagnosis": None,
-            "correction_attempts": 0,
-            "self_correction_triggered": False,
-            "messages": [],
-        }
+        initial_state = initial_agent_state(image_bytes)
 
         config = {"configurable": {"thread_id": session_id}}
         final_state = await agent.ainvoke(initial_state, config=config)
@@ -92,6 +75,9 @@ async def diagnose(file: UploadFile = File(...)):
             defect_type=final_state.get("defect_type"),
             defect_confidence=final_state.get("defect_confidence"),
             serial_number=final_state.get("serial_number"),
+            designator=final_state.get("designator"),
+            correction_mode=final_state.get("correction_mode"),
+            detections=final_state.get("detections") or [],
             self_correction_triggered=final_state.get("self_correction_triggered", False),
             correction_attempts=final_state.get("correction_attempts", 0),
             rag_documents_used=len(final_state.get("rag_documents") or []),

@@ -1,7 +1,7 @@
 """OCR utilities for serial number extraction from hardware labels."""
 
 import re
-import io
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -10,16 +10,24 @@ from PIL import Image
 
 from repair_agent.config import settings
 
-# Common hardware serial number patterns
+# Reference designators on PCB silkscreen (Phase D / self-correct).
+DESIGNATOR_PATTERN = re.compile(r"\b([RCULJQDW]\d{1,4})\b", re.IGNORECASE)
+
+# Legacy serial patterns kept for CI fixtures.
 SERIAL_PATTERNS = [
-    re.compile(r"[A-Z]{2,4}[-\s]?[A-Z0-9]{4,10}", re.IGNORECASE),  # SN-ABC12345
-    re.compile(r"S/?N[:\s]*([A-Z0-9\-]+)", re.IGNORECASE),          # S/N: ABC-12345
-    re.compile(r"Serial[:\s]*([A-Z0-9\-]+)", re.IGNORECASE),        # Serial: ABC12345
-    re.compile(r"[\d]{3,4}[-\s][A-Z0-9]{4,8}", re.IGNORECASE),      # 1234-ABCD
+    re.compile(r"S/?N[:\s]*([A-Z0-9]*\d[A-Z0-9\-]*)", re.IGNORECASE),
+    re.compile(r"Serial[:\s]*([A-Z0-9]*\d[A-Z0-9\-]*)", re.IGNORECASE),
+    re.compile(r"[A-Z]{2,4}-[A-Z0-9]{4,10}", re.IGNORECASE),
+    re.compile(r"[\d]{3,4}-[A-Z0-9]{4,8}", re.IGNORECASE),
 ]
 
-# Whitelist characters for OCR
 TESSERACT_WHITELIST = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-:"
+
+
+def _configure_tesseract() -> None:
+    cmd = settings.TESSERACT_CMD
+    if cmd and Path(cmd).exists():
+        pytesseract.pytesseract.tesseract_cmd = cmd
 
 
 def preprocess_for_ocr(img: np.ndarray) -> np.ndarray:
@@ -48,12 +56,24 @@ def preprocess_for_ocr(img: np.ndarray) -> np.ndarray:
 
 def extract_text(img: np.ndarray) -> str:
     """Run pytesseract OCR on preprocessed image."""
-    pil_img = Image.fromarray(img)
-    text = pytesseract.image_to_string(
-        pil_img,
-        config=f"--psm 6 --oem 3 -c tessedit_char_whitelist={TESSERACT_WHITELIST}",
-    )
-    return text.strip()
+    _configure_tesseract()
+    try:
+        pil_img = Image.fromarray(img)
+        text = pytesseract.image_to_string(
+            pil_img,
+            config=f"--psm 6 --oem 3 -c tessedit_char_whitelist={TESSERACT_WHITELIST}",
+        )
+        return text.strip()
+    except pytesseract.TesseractNotFoundError:
+        return ""
+
+
+def find_designator(raw_text: str) -> str | None:
+    """Return the first PCB reference designator (R12, C3, U7, …)."""
+    match = DESIGNATOR_PATTERN.search(raw_text)
+    if not match:
+        return None
+    return match.group(1).upper()
 
 
 def find_serial_number(raw_text: str) -> str | None:
@@ -71,8 +91,12 @@ def find_serial_number(raw_text: str) -> str | None:
 
 def estimate_ocr_confidence(img: np.ndarray) -> float:
     """Estimate OCR confidence from pytesseract word-level confidences."""
-    pil_img = Image.fromarray(img)
-    data = pytesseract.image_to_data(pil_img, output_type=pytesseract.Output.DICT)
+    _configure_tesseract()
+    try:
+        pil_img = Image.fromarray(img)
+        data = pytesseract.image_to_data(pil_img, output_type=pytesseract.Output.DICT)
+    except pytesseract.TesseractNotFoundError:
+        return 0.0
     confidences = [int(c) for c in data["conf"] if int(c) > 0]
     if not confidences:
         return 0.0

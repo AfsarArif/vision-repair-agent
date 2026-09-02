@@ -1,11 +1,15 @@
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+CvBackend = Literal["heuristic", "template_diff", "yolo"]
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # DeepSeek API (OpenAI-compatible)
-    DEEPSEEK_API_KEY: str
+    # DeepSeek API (OpenAI-compatible). Empty is allowed so tests/eval can import.
+    DEEPSEEK_API_KEY: str = ""
     DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1"
     DEEPSEEK_LLM_MODEL: str = "deepseek-chat"
 
@@ -18,8 +22,12 @@ class Settings(BaseSettings):
 
     # File paths
     CORPUS_DIR: str = "./docs/corpus"
+    DATA_DIR: str = "./data"
+    YOLO_WEIGHTS: str = ""
+    TESSERACT_CMD: str = ""
 
     # Agent tuning
+    CV_BACKEND: CvBackend = "heuristic"
     CONFIDENCE_THRESHOLD: float = 0.75
     MAX_CORRECTION_RETRIES: int = 3
     LOG_LEVEL: str = "INFO"

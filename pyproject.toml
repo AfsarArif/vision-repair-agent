@@ -1,7 +1,7 @@
 [project]
 name = "repair-agent"
 version = "0.1.0"
-description = "Vision-Driven Self-Correcting Repair Agent for hardware diagnostics"
+description = "LangGraph PCB AOI agent: public DeepPCB detection + NASA/ESA/Wikipedia RAG"
 authors = [{name = "Mohamed Afsar Harsath Arif"}]
 requires-python = ">=3.11"
 
@@ -42,10 +42,16 @@ dev = [
     "ruff>=0.4",
     "mypy>=1.9",
 ]
+train = [
+    "ultralytics>=8.0",
+]
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+packages = [{include = "repair_agent", from = "src"}]
 
 [tool.ruff]
 line-length = 100
@@ -59,3 +65,4 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+pythonpath = ["src"]

@@ -3,15 +3,17 @@
 import cv2
 import numpy as np
 
-DEFECT_CLASSES = ["burn_mark", "crack", "corrosion", "delamination", "normal"]
+from repair_agent.taxonomy import CANONICAL_CLASSES
 
-# HSV ranges for common defect types
+DEFECT_CLASSES = list(CANONICAL_CLASSES)
+
+# HSV ranges used only by the deprecated heuristic backend (synthetic / demo images).
 DEFECT_COLOR_RANGES = {
-    "burn_mark": {
+    "spurious_copper": {
         "lower": np.array([0, 20, 10]),
         "upper": np.array([25, 255, 120]),
     },
-    "corrosion": {
+    "mousebite": {
         "lower": np.array([30, 30, 60]),
         "upper": np.array([90, 180, 200]),
     },
@@ -50,49 +52,51 @@ def classify_defect_heuristic(
 ) -> str:
     """Classify defect type based on contour properties and color analysis.
 
-    Heuristics:
-    - Elongated contour (aspect ratio > 4) → crack
-    - Dark region (low mean value) → burn_mark
-    - Greenish hue → corrosion
-    - Otherwise → delamination or normal
+    Heuristics (deprecated; DeepPCB training replaces this in Phase B):
+    - Elongated contour → open
+    - Dark region → spurious_copper
+    - Greenish hue → mousebite (legacy synthetic fixtures)
+    - Bright region → spur
     """
     x, y, w, h = bbox
     aspect_ratio = w / max(h, 1)
 
-    # Crack: very elongated
     if aspect_ratio > 4 or (w > 5 * h):
-        return "crack"
+        return "open"
 
-    # Color-based classification on ROI
     roi = img[y : y + h, x : x + w]
     if roi.size == 0:
         return "normal"
 
-    # Convert to HSV for color analysis
     hsv_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
 
-    # Check burn mark (dark brown/black)
-    burn_mask = cv2.inRange(hsv_roi, DEFECT_COLOR_RANGES["burn_mark"]["lower"], DEFECT_COLOR_RANGES["burn_mark"]["upper"])
-    burn_ratio = cv2.countNonZero(burn_mask) / roi.size
+    copper_mask = cv2.inRange(
+        hsv_roi,
+        DEFECT_COLOR_RANGES["spurious_copper"]["lower"],
+        DEFECT_COLOR_RANGES["spurious_copper"]["upper"],
+    )
+    copper_ratio = cv2.countNonZero(copper_mask) / roi.size
 
-    # Check corrosion (greenish)
-    corrosion_mask = cv2.inRange(hsv_roi, DEFECT_COLOR_RANGES["corrosion"]["lower"], DEFECT_COLOR_RANGES["corrosion"]["upper"])
-    corrosion_ratio = cv2.countNonZero(corrosion_mask) / roi.size
+    bite_mask = cv2.inRange(
+        hsv_roi,
+        DEFECT_COLOR_RANGES["mousebite"]["lower"],
+        DEFECT_COLOR_RANGES["mousebite"]["upper"],
+    )
+    bite_ratio = cv2.countNonZero(bite_mask) / roi.size
 
-    if burn_ratio > 0.3:
-        return "burn_mark"
-    if corrosion_ratio > 0.2:
-        return "corrosion"
+    if copper_ratio > 0.3:
+        return "spurious_copper"
+    if bite_ratio > 0.2:
+        return "mousebite"
 
-    # Fallback: check mean brightness
     gray_roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
     mean_val = gray_roi.mean()
     if mean_val < 50:
-        return "burn_mark"
+        return "spurious_copper"
     if mean_val > 200:
-        return "delamination"
+        return "spur"
 
-    return "corrosion"
+    return "short"
 
 
 def estimate_confidence(contours: list[np.ndarray], total_image_area: int) -> float:

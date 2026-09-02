@@ -3,6 +3,7 @@
 import pytest
 
 from repair_agent.agent.nodes.cv_node import cv_node
+from repair_agent.taxonomy import CANONICAL_CLASSES
 from repair_agent.tools.cv_tools import (
     decode_image,
     preprocess_for_contour_detection,
@@ -55,7 +56,7 @@ class TestCVTools:
         if results:
             contour, bbox = results[0]
             defect = classify_defect_heuristic(img, contour, bbox)
-            assert defect in ["burn_mark", "crack", "corrosion", "delamination", "normal"]
+            assert defect in CANONICAL_CLASSES
 
     def test_classify_defect_crack(self, crack_image_bytes):
         img = decode_image(crack_image_bytes)
@@ -64,9 +65,7 @@ class TestCVTools:
         if results:
             contour, bbox = results[0]
             defect = classify_defect_heuristic(img, contour, bbox)
-            # Crack images should classify as crack
-            # (may vary with synthetic data, so just check valid output)
-            assert defect in ["burn_mark", "crack", "corrosion", "delamination", "normal"]
+            assert defect in CANONICAL_CLASSES
 
     def test_estimate_confidence(self, burn_mark_image_bytes):
         img = decode_image(burn_mark_image_bytes)

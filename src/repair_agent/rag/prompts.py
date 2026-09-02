@@ -1,29 +1,36 @@
-"""RAG prompt templates for hardware diagnostic retrieval and synthesis."""
+"""RAG prompt templates for PCB defect retrieval and diagnosis synthesis."""
 
-RAG_QUERY_TEMPLATE = "Hardware diagnostic procedure for {defect_type}"
-
-RAG_QUERY_WITH_SERIAL_TEMPLATE = (
-    "Hardware diagnostic for serial number {serial_number} with defect: {defect_type}"
+RAG_QUERY_TEMPLATE = (
+    "Bare-board PCB fabrication defect {defect_type}: inspection notes, "
+    "accept/reject criteria, and disposition or rework"
 )
 
-DIAGNOSIS_SYSTEM_PROMPT = """You are an expert hardware diagnostic AI. Given defect detection results
-and retrieved documentation, produce a structured diagnosis including:
-1. Defect classification
-2. Root cause analysis
-3. Recommended repair actions (step-by-step)
-4. Parts or references from documentation
-Be concise, factual, and cite the document sources by their metadata filenames."""
+RAG_QUERY_WITH_DESIGNATOR_TEMPLATE = (
+    "Bare-board PCB defect {defect_type} near reference designator {designator}: "
+    "inspection notes and disposition"
+)
+
+DIAGNOSIS_SYSTEM_PROMPT = """You are an AOI assistant for bare printed circuit boards.
+Given detector output and retrieved public workmanship text, produce:
+1. Defect classification (use the detector class names: open, short, mousebite, spur, spurious_copper, pin_hole, missing_hole, normal)
+2. What the defect means electrically
+3. Typical disposition (scrap, electrical test, isolate/etch, jumper) grounded in the retrieved text
+4. Citations by source filename or URL from the retrieved documents
+
+Do not invent IPC clause numbers, part numbers, or NASA paragraph ids that were not retrieved.
+If documentation is missing, say so."""
 
 DIAGNOSIS_USER_TEMPLATE = """Defect Type: {defect_type}
 Confidence: {defect_confidence:.2%}
-Serial Number: {serial_number}
+Designator / serial: {serial_number}
 Self-Correction Applied: {self_correction_triggered}
+Correction Mode: {correction_mode}
 Correction Attempts: {correction_attempts}
 
 Retrieved Documentation:
 {docs_text}
 
-Provide a complete diagnostic report."""
+Provide a diagnostic report. Cite only the documents above."""
 
 RETRIEVAL_K = 5
 CHUNK_SIZE = 1000

@@ -6,7 +6,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from repair_agent.agent.state import AgentState
 from repair_agent.agent.nodes.cv_node import cv_node
 from repair_agent.agent.nodes.rag_node import rag_node
-from repair_agent.agent.nodes.ocr_node import ocr_node
+from repair_agent.agent.nodes.self_correct_node import self_correct_node
 from repair_agent.agent.nodes.diagnosis_node import diagnosis_node
 from repair_agent.agent.edges import should_self_correct, correction_complete
 
@@ -15,49 +15,35 @@ def build_graph(checkpointer=None):
     """Build the LangGraph StateGraph for the vision repair agent.
 
     Graph flow:
-        CV → RAG(initial) → [conditional] → OCR → RAG(corrected) → [conditional] → Diagnosis → END
-                              ↓                                              ↓
-                           Diagnosis                                    Diagnosis
+        CV → RAG(initial) → [conditional] → self_correct → RAG(corrected) → Diagnosis → END
     """
     graph = StateGraph(AgentState)
 
-    # Register nodes
     graph.add_node("cv", cv_node)
     graph.add_node("rag_initial", rag_node)
-    graph.add_node("ocr", ocr_node)
+    graph.add_node("self_correct", self_correct_node)
     graph.add_node("rag_corrected", rag_node)
     graph.add_node("diagnosis", diagnosis_node)
 
-    # Entry → CV
     graph.set_entry_point("cv")
-
-    # CV → Initial RAG
     graph.add_edge("cv", "rag_initial")
-
-    # Initial RAG → conditional: self-correct or diagnose
     graph.add_conditional_edges(
         "rag_initial",
         should_self_correct,
         {
-            "self_correct": "ocr",
+            "self_correct": "self_correct",
             "diagnose": "diagnosis",
         },
     )
-
-    # OCR → Corrected RAG
-    graph.add_edge("ocr", "rag_corrected")
-
-    # Corrected RAG → conditional: retry or diagnose
+    graph.add_edge("self_correct", "rag_corrected")
     graph.add_conditional_edges(
         "rag_corrected",
         correction_complete,
         {
-            "retry": "ocr",
+            "retry": "self_correct",
             "diagnose": "diagnosis",
         },
     )
-
-    # Diagnosis → END
     graph.add_edge("diagnosis", END)
 
     return graph.compile(checkpointer=checkpointer)

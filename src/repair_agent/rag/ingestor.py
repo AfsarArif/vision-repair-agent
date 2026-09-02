@@ -11,6 +11,24 @@ from langchain_community.vectorstores import FAISS
 
 from repair_agent.config import settings
 from repair_agent.rag.prompts import CHUNK_SIZE, CHUNK_OVERLAP
+from repair_agent.taxonomy import DETECTION_CLASSES
+
+
+def _annotate_source_metadata(doc) -> None:
+    """Attach source_id, license hints, and defect_classes from the file path."""
+    source = str(doc.metadata.get("source", ""))
+    path = Path(source)
+    stem = path.stem.lower()
+    doc.metadata.setdefault("source_id", stem)
+    if "adapters" in path.parts:
+        doc.metadata["source_id"] = f"adapter-{stem}"
+        if stem in DETECTION_CLASSES:
+            doc.metadata["defect_classes"] = [stem]
+        doc.metadata.setdefault("license", "project-adapter")
+    if "wikipedia" in path.parts:
+        doc.metadata["source_id"] = f"wikipedia-{stem}"
+        doc.metadata.setdefault("license", "CC-BY-SA")
+
 
 # Track ingested files to support incremental ingestion
 INGESTION_LOG = Path(settings.CORPUS_DIR) / ".ingestion_log.json"
@@ -53,7 +71,7 @@ async def ingest_corpus(incremental: bool = True) -> dict:
     )
     pdf_docs = pdf_loader.load()
 
-    # Load text files
+    # Load text and markdown (adapters)
     txt_loader = DirectoryLoader(
         str(corpus_dir),
         glob="**/*.txt",
@@ -62,7 +80,17 @@ async def ingest_corpus(incremental: bool = True) -> dict:
     )
     txt_docs = txt_loader.load()
 
-    all_docs = pdf_docs + txt_docs
+    md_loader = DirectoryLoader(
+        str(corpus_dir),
+        glob="**/*.md",
+        loader_cls=TextLoader,
+        show_progress=True,
+    )
+    md_docs = md_loader.load()
+
+    all_docs = pdf_docs + txt_docs + md_docs
+    for doc in all_docs:
+        _annotate_source_metadata(doc)
 
     # Filter out already-ingested files
     if incremental:

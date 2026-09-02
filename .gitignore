@@ -42,3 +42,10 @@ pgdata/
 .ruff_cache/
 htmlcov/
 .coverage
+
+# Downloaded public datasets and PDFs (see docs/DATASETS.md)
+data/raw/
+data/processed/
+docs/corpus/pdfs/
+docs/corpus/wikipedia/
+evals/results/*.json

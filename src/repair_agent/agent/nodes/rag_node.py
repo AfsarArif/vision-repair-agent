@@ -2,20 +2,17 @@
 
 from repair_agent.agent.state import AgentState
 from repair_agent.rag.retriever import aretrieve
-from repair_agent.rag.prompts import RAG_QUERY_TEMPLATE, RAG_QUERY_WITH_SERIAL_TEMPLATE
+from repair_agent.rag.prompts import RAG_QUERY_TEMPLATE, RAG_QUERY_WITH_DESIGNATOR_TEMPLATE
 
 
 def _build_query(state: AgentState) -> str:
-    """Build a RAG query from the current state.
+    """Build a RAG query from defect class and optional designator."""
+    defect = state.get("defect_type") or "unknown defect"
+    designator = state.get("designator") or state.get("serial_number")
 
-    Uses serial number if available for precise lookup; otherwise uses defect type.
-    """
-    defect = state.get("defect_type", "unknown defect")
-    serial = state.get("serial_number")
-
-    if serial:
-        return RAG_QUERY_WITH_SERIAL_TEMPLATE.format(
-            serial_number=serial, defect_type=defect
+    if designator:
+        return RAG_QUERY_WITH_DESIGNATOR_TEMPLATE.format(
+            designator=designator, defect_type=defect
         )
     return RAG_QUERY_TEMPLATE.format(defect_type=defect)
 

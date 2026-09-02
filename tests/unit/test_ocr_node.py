@@ -7,6 +7,7 @@ from repair_agent.tools.ocr_tools import (
     preprocess_for_ocr,
     extract_text,
     find_serial_number,
+    find_designator,
     estimate_ocr_confidence,
     decode_and_preprocess,
 )
@@ -34,6 +35,10 @@ class TestOCRTools:
     def test_find_serial_number_empty_string(self):
         result = find_serial_number("")
         assert result is None
+
+    def test_find_designator(self):
+        assert find_designator("defect near R12 on the top side") == "R12"
+        assert find_designator("no text") is None
 
     def test_decode_and_preprocess_valid(self, serial_number_image_bytes):
         preprocessed = decode_and_preprocess(serial_number_image_bytes)
