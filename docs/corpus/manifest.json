@@ -1,0 +1,67 @@
+{
+  "nasa-std-8739.6b.pdf": {
+    "source_id": "nasa-std-8739.6b",
+    "license": "NASA-STD-public",
+    "defect_classes": []
+  },
+  "nasa-std-8739.1b.pdf": {
+    "source_id": "nasa-std-8739.1b",
+    "license": "NASA-STD-public",
+    "defect_classes": ["pin_hole"]
+  },
+  "nasa-std-8739.3.pdf": {
+    "source_id": "nasa-std-8739.3",
+    "license": "NASA-STD-cancelled-public",
+    "defect_classes": ["open", "short"]
+  },
+  "ecss-q-st-70-61c.pdf": {
+    "source_id": "ecss-q-st-70-61c",
+    "license": "ECSS-public",
+    "defect_classes": ["open", "short", "mousebite", "spur", "spurious_copper"]
+  },
+  "arxiv-1902.06197-deeppcb.pdf": {
+    "source_id": "arxiv-1902.06197",
+    "license": "arXiv",
+    "defect_classes": ["open", "short", "mousebite", "spur", "spurious_copper", "pin_hole"]
+  },
+  "arxiv-1901.08204-pku-pcb.pdf": {
+    "source_id": "arxiv-1901.08204",
+    "license": "arXiv",
+    "defect_classes": ["open", "short", "mousebite", "spur", "spurious_copper", "missing_hole"]
+  },
+  "printed_circuit_board.md": {
+    "source_id": "wikipedia-printed_circuit_board",
+    "license": "CC-BY-SA-4.0",
+    "defect_classes": []
+  },
+  "printed_circuit_board_manufacturing.md": {
+    "source_id": "wikipedia-printed_circuit_board_manufacturing",
+    "license": "CC-BY-SA-4.0",
+    "defect_classes": ["open", "short", "mousebite", "spur", "spurious_copper", "pin_hole"]
+  },
+  "automated_optical_inspection.md": {
+    "source_id": "wikipedia-automated_optical_inspection",
+    "license": "CC-BY-SA-4.0",
+    "defect_classes": []
+  },
+  "soldering.md": {
+    "source_id": "wikipedia-soldering",
+    "license": "CC-BY-SA-4.0",
+    "defect_classes": ["open", "short"]
+  },
+  "rework_(electronics).md": {
+    "source_id": "wikipedia-rework_(electronics)",
+    "license": "CC-BY-SA-4.0",
+    "defect_classes": []
+  },
+  "conformal_coating.md": {
+    "source_id": "wikipedia-conformal_coating",
+    "license": "CC-BY-SA-4.0",
+    "defect_classes": ["pin_hole"]
+  },
+  "solder_mask.md": {
+    "source_id": "wikipedia-solder_mask",
+    "license": "CC-BY-SA-4.0",
+    "defect_classes": ["spurious_copper"]
+  }
+}

@@ -169,11 +169,11 @@ Implemented in this tree:
 - Template-diff remains the localization baseline and self-correction path.
 - Report mAP on the official test set in `evals/results/` (gitignored).
 
-### Phase C — Public RAG
+### Phase C — Public RAG (this build)
 
-- Ingest NASA / ECSS / arXiv / Wikipedia + adapter pages.
-- Metadata filter by `defect_classes` before vector search.
-- Gold queries for Recall@5.
+- Ingest NASA / ECSS / arXiv / Wikipedia + adapter pages via `docs/corpus/manifest.json`.
+- Metadata filter by `defect_classes` in `aretrieve()` and the RAG node.
+- Gold queries for Recall@5 (gate ≥ 0.80; logged after ingest).
 
 ### Phase D — OCR path (optional, color boards)
 
@@ -234,4 +234,4 @@ This project is a **research / portfolio demo**, not a certified NASA or IPC ins
 
 ---
 
-*Phase B detector training is in the tree. Weights stay gitignored under `data/processed/`. See [docs/BUILD.md](docs/BUILD.md).*
+*Phase C public RAG is in the tree. Run `make download-corpus && make ingest-corpus && make eval-rag`. See [docs/BUILD.md](docs/BUILD.md).*

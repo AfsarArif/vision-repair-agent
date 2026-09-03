@@ -102,7 +102,11 @@ def eval_rag(queries_path: Path) -> dict:
 
     async def _run():
         for row in rows:
-            docs = await aretrieve(row["query"], k=row.get("k", 5))
+            docs = await aretrieve(
+                row["query"],
+                k=row.get("k", 5),
+                defect_class=row.get("defect_class"),
+            )
             retrieved = _source_ids(docs)
             expected = row["expected_source_ids"]
             r = recall_at_k(retrieved, expected, k=row.get("k", 5))

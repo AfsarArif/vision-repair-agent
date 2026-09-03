@@ -1,7 +1,15 @@
-{"id": "q-open", "query": "Bare-board PCB open circuit broken trace e-test continuity gap disposition scrap or jumper", "expected_source_ids": ["adapter-open"], "k": 5}
-{"id": "q-short", "query": "Unintended copper bridge short between nets isolate extra copper template absdiff", "expected_source_ids": ["adapter-short"], "k": 5}
-{"id": "q-mousebite", "query": "Mousebite nick in trace edge remaining copper width DeepPCB class", "expected_source_ids": ["adapter-mousebite"], "k": 5}
-{"id": "q-spur", "query": "Spur unwanted protrusion attached to a trace under-etch spacing", "expected_source_ids": ["adapter-spur"], "k": 5}
-{"id": "q-copper", "query": "Spurious copper isolated island extra copper not attached to a net", "expected_source_ids": ["adapter-spurious_copper"], "k": 5}
-{"id": "q-pinhole", "query": "Pin-hole void in a copper pad or trace DeepPCB class 6", "expected_source_ids": ["adapter-pin_hole"], "k": 5}
-{"id": "q-missing-hole", "query": "Missing hole expected drill absent PKU-Market-PCB class not DeepPCB pin-hole", "expected_source_ids": ["adapter-missing_hole"], "k": 5}
+{"id": "q-open", "query": "Bare-board PCB open circuit broken trace e-test continuity gap disposition scrap or jumper", "expected_source_ids": ["adapter-open"], "defect_class": "open", "k": 5}
+{"id": "q-short", "query": "Unintended copper bridge short between nets isolate extra copper template absdiff", "expected_source_ids": ["adapter-short"], "defect_class": "short", "k": 5}
+{"id": "q-mousebite", "query": "Mousebite nick in trace edge remaining copper width DeepPCB class", "expected_source_ids": ["adapter-mousebite"], "defect_class": "mousebite", "k": 5}
+{"id": "q-spur", "query": "Spur unwanted protrusion attached to a trace under-etch spacing", "expected_source_ids": ["adapter-spur"], "defect_class": "spur", "k": 5}
+{"id": "q-copper", "query": "Spurious copper isolated island extra copper not attached to a net", "expected_source_ids": ["adapter-spurious_copper"], "defect_class": "spurious_copper", "k": 5}
+{"id": "q-pinhole", "query": "Pin-hole void in a copper pad or trace DeepPCB class 6", "expected_source_ids": ["adapter-pin_hole"], "defect_class": "pin_hole", "k": 5}
+{"id": "q-missing-hole", "query": "Missing hole expected drill absent PKU-Market-PCB class not DeepPCB pin-hole", "expected_source_ids": ["adapter-missing_hole"], "defect_class": "missing_hole", "k": 5}
+{"id": "q-open-wiki", "query": "PCB manufacturing electrical test open circuit continuity failure bare board", "expected_source_ids": ["wikipedia-printed_circuit_board_manufacturing"], "defect_class": "open", "k": 5}
+{"id": "q-short-wiki", "query": "PCB fabrication short circuit unintended connection between copper traces", "expected_source_ids": ["wikipedia-printed_circuit_board_manufacturing"], "defect_class": "short", "k": 5}
+{"id": "q-deeppcb-paper", "query": "DeepPCB dataset six defect classes open short mousebite spur copper pin-hole", "expected_source_ids": ["arxiv-1902.06197"], "defect_class": "mousebite", "k": 5}
+{"id": "q-pku-paper", "query": "PKU Market PCB dataset missing hole synthetic color board defects", "expected_source_ids": ["arxiv-1901.08204"], "defect_class": "missing_hole", "k": 5}
+{"id": "q-aoi", "query": "Automated optical inspection workflow bare PCB defect detection template comparison", "expected_source_ids": ["wikipedia-automated_optical_inspection"], "k": 5}
+{"id": "q-ecss-assembly", "query": "High reliability SMT assembly workmanship accept reject criteria solder joints", "expected_source_ids": ["ecss-q-st-70-61c"], "defect_class": "short", "k": 5}
+{"id": "q-nasa-esd", "query": "NASA workmanship standard ESD handling implementation for electronic assemblies", "expected_source_ids": ["nasa-std-8739.6b"], "k": 5}
+{"id": "q-rework", "query": "Electronics rework disposition scrap versus repair printed circuit board", "expected_source_ids": ["wikipedia-rework_(electronics)"], "k": 5}

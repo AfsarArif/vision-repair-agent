@@ -15,6 +15,15 @@ ingest:
 download:
 	python scripts/download_public_data.py --corpus --wikipedia
 
+download-corpus:
+	python scripts/download_public_data.py --corpus --wikipedia
+
+ingest-corpus:
+	python scripts/ingest_corpus.py --rebuild
+
+eval-rag:
+	python evals/run_eval.py --stage rag
+
 prepare-data:
 	python scripts/prepare_deeppcb.py
 

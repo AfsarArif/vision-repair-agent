@@ -15,6 +15,7 @@ venv/
 
 # FAISS index
 .faiss_index/
+docs/corpus/.ingestion_log.json
 .ingestion_log.json
 
 # Claude

@@ -151,13 +151,26 @@ Point `.env` at the weights (`CV_BACKEND=yolo`, `YOLO_WEIGHTS=data/processed/dee
 
 First-pass gate: **mAP@0.5 ≥ 0.85** on the official 500. The DeepPCB paper’s 98.6% is a published upper bound from a different architecture, not our claim. Logged numbers live in gitignored `evals/results/train_summary.json`.
 
-### Phase C — Public RAG
+### Phase C — Public RAG (this build)
 
-**Goal:** Hundreds of chunks from ~15–25 public documents, filtered by `defect_classes` metadata.
+**Goal:** Hundreds of chunks from public documents, filtered by `defect_classes` metadata.
 
-Ingest NASA-STD-8739.6B / 8739.1B, ECSS-Q-ST-70-61C, cancelled NASA-STD-8739.3, arXiv PDFs, Wikipedia extracts, plus adapters. Chunk size 1000 / overlap 150. Embed with local MiniLM. Gold: `evals/rag_queries.jsonl` → **Recall@5 ≥ 0.80**.
+Shipped:
 
-Do not ingest IPC-A-610 / J-STD-001 / IPC-7711 (paid). Do not add a paid reranker until this Recall@5 is the bottleneck.
+- `docs/corpus/manifest.json` maps PDFs and Wikipedia extracts to `source_id`, `license`, and `defect_classes`.
+- `ingest_corpus.py` ingests only `adapters/`, `wikipedia/`, and `pdfs/` (CI stub `.txt` files at corpus root are excluded).
+- Adapters keep inline `source_id` / `defect_classes` frontmatter; chunking stays 1000 / 150 with MiniLM embeddings.
+- `aretrieve(..., defect_class=...)` oversamples then filters chunks whose metadata matches the detector class (general docs with empty classes still pass through).
+- `rag_node` passes the current `defect_type` into retrieval.
+- Expanded `evals/rag_queries.jsonl` (adapters + Wikipedia + arXiv + standards).
+
+```bash
+poetry run python scripts/download_public_data.py --corpus --wikipedia
+poetry run python scripts/ingest_corpus.py --rebuild
+poetry run python evals/run_eval.py --stage rag
+```
+
+Gate: **Recall@5 ≥ 0.80** on `evals/rag_queries.jsonl`. Do not ingest IPC-A-610 / J-STD-001 / IPC-7711.
 
 ### Phase D — Designator OCR (color boards only)
 
@@ -205,7 +218,7 @@ Results write to `evals/results/` (gitignored). Commit the script and the gold q
 |-------|-----------|
 | A | `pytest` green; `run_eval.py --stage synthetic` prints IoU; adapters exist; download/prepare scripts run |
 | B | YOLO weights at `data/processed/deeppcb/weights/best.pt`; test mAP@0.5 logged in `evals/results/`; heuristic is fallback only |
-| C | Recall@5 ≥ 0.80 on `rag_queries.jsonl` |
+| C | Recall@5 ≥ 0.80 on `rag_queries.jsonl` after `ingest_corpus.py --rebuild` |
 | D | Designator exact-match ≥ 0.70 on FPIC gold |
 | E | Diagnose sessions survive process restart |
 

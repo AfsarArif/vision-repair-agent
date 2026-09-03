@@ -30,7 +30,9 @@ async def rag_node(state: AgentState) -> dict:
         dict with rag_query and rag_documents.
     """
     query = _build_query(state)
-    rag_docs = await aretrieve(query)
+    defect = state.get("defect_type")
+    defect_class = defect if defect and defect != "normal" else None
+    rag_docs = await aretrieve(query, defect_class=defect_class)
 
     return {
         "rag_query": query,

@@ -25,6 +25,14 @@ NASA_PDFS = {
     "nasa-std-8739.1b.pdf": "https://standards.nasa.gov/sites/default/files/standards/NASA/B/2/nasa-std-87391B-Change-2.pdf",
 }
 
+NASA_CANCELLED_PDFS = {
+  # Cancelled 2011; public mirror. Skip gracefully if the host blocks automated fetch.
+    "nasa-std-8739.3.pdf": (
+        "https://everyspec.com/NASA/NASA-NASA-STD/NASA-STD-8739x3_CHG-4_33216/"
+        "NASA-STD-8739.3_CHG-4_33216.pdf"
+    ),
+}
+
 ECSS_PDFS = {
     "ecss-q-st-70-61c.pdf": "https://ecss.nl/wp-content/uploads/2022/04/ECSS-Q-ST-70-61C(8April2022).pdf",
 }
@@ -141,8 +149,16 @@ def main() -> int:
         if args.all or args.deeppcb:
             clone_deeppcb()
         if args.all or args.corpus:
-            for name, url in {**NASA_PDFS, **ECSS_PDFS, **ARXIV_PDFS}.items():
-                download_file(url, PDF_DIR / name)
+            for name, url in {
+                **NASA_PDFS,
+                **NASA_CANCELLED_PDFS,
+                **ECSS_PDFS,
+                **ARXIV_PDFS,
+            }.items():
+                try:
+                    download_file(url, PDF_DIR / name)
+                except OSError as exc:
+                    print(f"warning: could not download {name}: {exc}", file=sys.stderr)
         if args.all or args.wikipedia:
             download_wikipedia()
     except subprocess.CalledProcessError as exc:
