@@ -1,5 +1,8 @@
 """LangGraph agent graph with self-correcting diagnostic workflow."""
 
+from contextlib import asynccontextmanager
+from typing import Any, AsyncIterator
+
 from langgraph.graph import END, StateGraph
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -49,20 +52,45 @@ def build_graph(checkpointer=None):
     return graph.compile(checkpointer=checkpointer)
 
 
-async def get_agent(db_connection_string: str | None = None):
-    """Create a compiled agent.
+@asynccontextmanager
+async def get_agent(db_connection_string: str | None = None) -> AsyncIterator[Any]:
+    """Async context manager yielding a compiled agent with the right checkpointer.
 
-    If db_connection_string is provided, uses PostgreSQL-backed checkpointing.
-    Otherwise uses in-memory checkpointing (no persistence but works without Docker).
+    * ``db_connection_string`` given → PostgreSQL checkpointing via ``AsyncPostgresSaver``
+      over a psycopg ``AsyncConnectionPool``. Accepts a SQLAlchemy-style URL
+      (``postgresql+asyncpg://...``) and converts it to psycopg conninfo. The pool is
+      opened on enter, checkpoint tables are created (``setup()``), and the pool is
+      closed on exit — use it from the FastAPI lifespan.
+    * otherwise → in-memory ``MemorySaver`` (no persistence, no Docker).
+
+        async with get_agent(url) as agent:
+            await agent.ainvoke(state, config={"configurable": {"thread_id": sid}})
     """
-    if db_connection_string:
-        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+    if not db_connection_string:
+        yield build_graph(checkpointer=MemorySaver())
+        return
 
-        checkpointer = AsyncPostgresSaver.from_conn_string(db_connection_string)
+    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+    from psycopg.rows import dict_row
+    from psycopg_pool import AsyncConnectionPool
+
+    from repair_agent.db.connection import to_psycopg_conninfo
+
+    pool = AsyncConnectionPool(
+        conninfo=to_psycopg_conninfo(db_connection_string),
+        max_size=10,
+        open=False,
+        # Required by AsyncPostgresSaver: autocommit for setup(), dict rows, and no
+        # server-side prepared statements (safe behind pgbouncer).
+        kwargs={"autocommit": True, "prepare_threshold": 0, "row_factory": dict_row},
+    )
+    await pool.open(wait=True, timeout=10)
+    try:
+        checkpointer = AsyncPostgresSaver(pool)
         await checkpointer.setup()
-        return build_graph(checkpointer)
-
-    return build_graph(checkpointer=MemorySaver())
+        yield build_graph(checkpointer)
+    finally:
+        await pool.close()
 
 
 def get_agent_sync():

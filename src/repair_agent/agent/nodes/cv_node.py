@@ -23,13 +23,25 @@ def _empty_normal(backend: str = "heuristic") -> dict:
         "defect_bbox": None,
         "cropped_image_bytes": None,
         "detections": [],
+        "candidate_detections": [],
+        "min_confidence": 0.95,
         "cv_backend": backend,
     }
 
 
-def _from_detections(img, detections: list[Detection], backend: str) -> dict:
-    if not detections:
+def _from_detections(
+    img,
+    detections: list[Detection],
+    backend: str,
+    candidates: list[Detection] | None = None,
+) -> dict:
+    candidates = detections if candidates is None else candidates
+    if not detections and not candidates:
         return _empty_normal(backend)
+    min_conf = min(float(d.get("score") or 0.0) for d in candidates) if candidates else 0.95
+    if not detections:
+        # Only sub-threshold boxes: report normal but let the gate see them.
+        return {**_empty_normal(backend), "candidate_detections": candidates, "min_confidence": min_conf}
     ranked = sorted(detections, key=lambda d: float(d.get("score") or 0.0), reverse=True)
     top = ranked[0]
     bbox = top["bbox"]
@@ -41,6 +53,8 @@ def _from_detections(img, detections: list[Detection], backend: str) -> dict:
         "defect_bbox": bbox,
         "cropped_image_bytes": cropped,
         "detections": ranked,
+        "candidate_detections": candidates,
+        "min_confidence": min_conf,
         "cv_backend": backend,
     }
 
@@ -65,6 +79,8 @@ def _heuristic_pipeline(img) -> dict:
         "defect_bbox": bbox,
         "cropped_image_bytes": crop_region(img, bbox),
         "detections": detections,
+        "candidate_detections": detections,
+        "min_confidence": confidence,
         "cv_backend": "heuristic",
     }
 
@@ -90,10 +106,11 @@ async def cv_node(state: AgentState) -> dict:
         if weights is None:
             return _heuristic_pipeline(img)
         try:
-            detections = detect_yolo(img, str(weights))
+            candidates = detect_yolo(img, str(weights), conf=settings.YOLO_CANDIDATE_CONF)
         except (FileNotFoundError, ImportError):
             return _heuristic_pipeline(img)
-        return _from_detections(img, detections, "yolo")
+        detections = [d for d in candidates if d["score"] >= settings.YOLO_CONF]
+        return _from_detections(img, detections, "yolo", candidates=candidates)
 
     _exhaustive: Never = backend
     raise ValueError(f"Unknown CV backend: {_exhaustive}")

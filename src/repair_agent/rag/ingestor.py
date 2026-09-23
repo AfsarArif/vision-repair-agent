@@ -37,9 +37,15 @@ def save_ingestion_log(files: set[str]) -> None:
     INGESTION_LOG.write_text(json.dumps(sorted(files), indent=2), encoding="utf-8")
 
 
-def _apply_metadata(doc: Document, path: Path, manifest: dict[str, dict]) -> None:
+def _apply_metadata(
+    doc: Document,
+    path: Path,
+    manifest: dict[str, dict],
+    frontmatter: dict[str, str] | None = None,
+) -> None:
     entry = manifest_entry_for_path(path, manifest)
-    frontmatter, _ = parse_frontmatter(doc.page_content)
+    if frontmatter is None:
+        frontmatter, _ = parse_frontmatter(doc.page_content)
     source_id = frontmatter.get("source_id") or entry.get("source_id") or path.stem.lower()
     license_tag = frontmatter.get("license") or entry.get("license") or ""
     classes = parse_defect_classes(
@@ -56,9 +62,8 @@ def _load_markdown(path: Path, manifest: dict[str, dict]) -> Document:
     raw = path.read_text(encoding="utf-8", errors="ignore")
     frontmatter, body = parse_frontmatter(raw)
     doc = Document(page_content=body or raw, metadata={"source": str(path.resolve())})
-    if frontmatter:
-        doc.page_content = body or raw
-    _apply_metadata(doc, path, manifest)
+    # Body has the frontmatter stripped, so pass the parsed keys through.
+    _apply_metadata(doc, path, manifest, frontmatter=frontmatter)
     return doc
 
 

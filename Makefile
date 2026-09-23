@@ -1,4 +1,4 @@
-.PHONY: up down migrate ingest test run lint clean download prepare-data train eval eval-cv
+.PHONY: up down migrate ingest test run lint clean download prepare-data train eval eval-cv test-persistence run-postgres
 
 up:
 	docker-compose up -d
@@ -50,3 +50,13 @@ clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type f -name '*.pyc' -delete
 	rm -rf .pytest_cache .mypy_cache .ruff_cache
+
+# Phase E — persistence. POSTGRES_PORT overrides the host port (e.g. 5433 if 5432 is taken);
+# point DATABASE_URL / TEST_DATABASE_URL at the same port.
+TEST_DATABASE_URL ?= postgresql+asyncpg://repair_agent:repair_agent@localhost:$${POSTGRES_PORT:-5432}/repair_agent_db
+
+test-persistence:
+	TEST_DATABASE_URL=$(TEST_DATABASE_URL) pytest tests/integration/test_persistence.py -v -rs --asyncio-mode=auto
+
+run-postgres:
+	PERSISTENCE_BACKEND=postgres uvicorn repair_agent.api.main:app --reload --port 8000

@@ -1,6 +1,7 @@
 """Self-correction: template-diff refine and/or silkscreen designator OCR."""
 
 from repair_agent.agent.state import AgentState
+from repair_agent.config import settings
 from repair_agent.tools.cv_tools import crop_region, decode_image
 from repair_agent.tools.ocr_tools import (
     decode_and_preprocess,
@@ -9,6 +10,7 @@ from repair_agent.tools.ocr_tools import (
     find_designator,
     find_serial_number,
 )
+from repair_agent.tools.fusion import verify_with_template
 from repair_agent.tools.template_diff import localize_defects
 
 
@@ -27,7 +29,33 @@ async def self_correct_node(state: AgentState) -> dict:
     modes: list[str] = []
 
     template_bytes = state.get("template_image_bytes")
-    if template_bytes:
+    candidates = [d for d in (state.get("candidate_detections") or []) if d.get("cls")]
+    if template_bytes and candidates:
+        # Class-aware boxes exist: the diff arbitrates the uncertain band
+        # instead of replacing labelled boxes with class-less blobs.
+        test = decode_image(state["image_bytes"])
+        blobs = localize_defects(test, decode_image(template_bytes))
+        fused = verify_with_template(
+            candidates,
+            blobs,
+            op_conf=settings.YOLO_CONF,
+            recover_conf=settings.YOLO_CANDIDATE_CONF,
+            keep_conf=settings.CONFIDENCE_THRESHOLD,
+            min_coverage=settings.TEMPLATE_MIN_COVERAGE,
+        )
+        updates["detections"] = fused
+        updates["min_confidence"] = 1.0  # band resolved; do not re-trigger
+        if fused:
+            top = fused[0]
+            updates["defect_type"] = top["cls"]
+            updates["defect_confidence"] = float(top.get("score") or 0.0)
+            updates["defect_bbox"] = top["bbox"]
+            updates["cropped_image_bytes"] = crop_region(test, top["bbox"])
+        else:
+            updates["defect_type"] = "normal"
+            updates["defect_bbox"] = None
+        modes.append("template_verify")
+    elif template_bytes:
         test = decode_image(state["image_bytes"])
         template = decode_image(template_bytes)
         detections = localize_defects(test, template)

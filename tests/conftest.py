@@ -16,6 +16,8 @@ from repair_agent.config import settings
 def _force_heuristic_cv(monkeypatch):
     """Keep unit tests on the heuristic backend even if .env sets CV_BACKEND=yolo."""
     monkeypatch.setattr(settings, "CV_BACKEND", "heuristic")
+    # No cross-encoder download in unit tests; test_rag_retriever covers rerank().
+    monkeypatch.setattr(settings, "RAG_RERANKER", "")
 
 
 def create_test_image(

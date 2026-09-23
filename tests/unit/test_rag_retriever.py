@@ -48,3 +48,41 @@ async def test_aretrieve_passes_defect_class_to_search():
         results = await retriever.aretrieve("open circuit", k=3, defect_class="open")
         mock_store.return_value.similarity_search.assert_called_once()
         assert results[0]["metadata"]["source_id"] == "adapter-open"
+
+
+def test_rerank_orders_by_cross_encoder_score():
+    from repair_agent.rag import retriever
+
+    docs = [SimpleNamespace(page_content=t, metadata={}) for t in ("a", "bb", "ccc")]
+
+    class FakeCE:
+        def predict(self, pairs):
+            return [len(text) for _, text in pairs]
+
+    with patch.object(retriever, "_get_reranker", return_value=FakeCE()):
+        ranked = retriever.rerank("q", docs, "fake")
+    assert [d.page_content for d in ranked] == ["ccc", "bb", "a"]
+
+
+@pytest.mark.asyncio
+async def test_aretrieve_reranks_filtered_candidates(monkeypatch):
+    from repair_agent.rag import retriever
+
+    docs = [
+        SimpleNamespace(page_content="x", metadata={"defect_classes": "short"}),
+        SimpleNamespace(page_content="yy", metadata={"defect_classes": "open"}),
+        SimpleNamespace(page_content="zzz", metadata={"defect_classes": ""}),
+    ]
+
+    class FakeCE:
+        def predict(self, pairs):
+            return [len(text) for _, text in pairs]
+
+    monkeypatch.setattr(retriever.settings, "RAG_FETCH_K", 20)
+    with patch.object(retriever, "get_vectorstore") as mock_store, patch.object(
+        retriever, "_get_reranker", return_value=FakeCE()
+    ):
+        mock_store.return_value.similarity_search.return_value = docs
+        results = await retriever.aretrieve("q", k=2, defect_class="open", reranker="fake")
+        assert mock_store.return_value.similarity_search.call_args.kwargs["k"] == 20
+    assert [r["content"] for r in results] == ["zzz", "yy"]

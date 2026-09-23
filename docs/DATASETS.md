@@ -55,7 +55,9 @@ YOLO conversion: class index is `type - 1` (DeepPCB is 1-based). Run `scripts/pr
 | **Paper** | Huang & Wei, [arXiv:1901.08204](https://arxiv.org/abs/1901.08204) |
 | **License** | **Academic research only** (lab page). Do not redistribute the zip in this repo. |
 | **Augmented YOLO/COCO mirror** | [huggingface.co/datasets/YangNexus/pcb](https://huggingface.co/datasets/YangNexus/pcb) — still inherit PKU terms |
+| **No-login mirror (original 693, unaugmented)** | [huggingface.co/datasets/RobotHuman/PCB_defect](https://huggingface.co/datasets/RobotHuman/PCB_defect) — PKU terms still apply |
 | **Local path** | `data/raw/pku_pcb/` (gitignored) |
+| **Prep** | `scripts/prepare_pku.py` → `data/processed/pku/gold_holdout.jsonl` |
 
 ### Optional — VisA PCB1–PCB4 (anomaly gate)
 

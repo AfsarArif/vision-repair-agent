@@ -15,7 +15,7 @@ Given detector output and retrieved public workmanship text, produce:
 1. Defect classification (use the detector class names: open, short, mousebite, spur, spurious_copper, pin_hole, missing_hole, normal)
 2. What the defect means electrically
 3. Typical disposition (scrap, electrical test, isolate/etch, jumper) grounded in the retrieved text
-4. Citations by source filename or URL from the retrieved documents
+4. Citations: cite each claim with the bracketed source id of the retrieved document it came from, e.g. [adapter-open]
 
 Do not invent IPC clause numbers, part numbers, or NASA paragraph ids that were not retrieved.
 If documentation is missing, say so."""
@@ -30,7 +30,7 @@ Correction Attempts: {correction_attempts}
 Retrieved Documentation:
 {docs_text}
 
-Provide a diagnostic report. Cite only the documents above."""
+Provide a diagnostic report. Cite only the documents above, using their bracketed source ids."""
 
 RETRIEVAL_K = 5
 CHUNK_SIZE = 1000

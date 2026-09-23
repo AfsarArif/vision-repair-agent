@@ -19,7 +19,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from repair_agent.data.deeppcb import export_splits, find_pairs, split_pairs  # noqa: E402
+from repair_agent.data.deeppcb import export_splits, find_pairs, split_pairs, write_gold  # noqa: E402
 
 
 def main() -> int:
@@ -27,6 +27,11 @@ def main() -> int:
     parser.add_argument("--raw", type=Path, default=ROOT / "data" / "raw" / "deeppcb")
     parser.add_argument("--out", type=Path, default=ROOT / "data" / "processed" / "deeppcb")
     parser.add_argument("--img-size", type=int, default=640)
+    parser.add_argument(
+        "--gold-only",
+        action="store_true",
+        help="Only rewrite gold_val/gold_test.jsonl (keeps images, labels, and trained weights)",
+    )
     args = parser.parse_args()
 
     if not args.raw.exists():
@@ -41,6 +46,11 @@ def main() -> int:
     splits = split_pairs(pairs, raw_root=args.raw)
     if not splits["val"] and splits["train"]:
         splits["val"] = [splits["train"][0]]
+
+    if args.gold_only:
+        paths = write_gold(splits, args.out)
+        print(f"val={len(splits['val'])} test={len(splits['test'])} gold={sorted(map(str, paths.values()))}")
+        return 0
 
     gold_path = export_splits(splits, args.out, fallback_size=args.img_size)
     n_train_temps = len(list((args.out / "images" / "train").glob("*_temp.jpg")))

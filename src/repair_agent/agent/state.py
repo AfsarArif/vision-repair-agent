@@ -22,6 +22,10 @@ class AgentState(TypedDict):
     defect_bbox: Optional[tuple]
     cropped_image_bytes: Optional[bytes]
     detections: Optional[List[Detection]]
+    # YOLO boxes down to YOLO_CANDIDATE_CONF, for template verification.
+    candidate_detections: Optional[List[Detection]]
+    # Lowest candidate score; the self-correct gate reads this.
+    min_confidence: Optional[float]
     cv_backend: Optional[str]
 
     # OCR / designator outputs (serial_number also holds a designator when found)
@@ -58,6 +62,8 @@ def initial_agent_state(
         "defect_bbox": None,
         "cropped_image_bytes": None,
         "detections": None,
+        "candidate_detections": None,
+        "min_confidence": None,
         "cv_backend": None,
         "serial_number": None,
         "designator": None,

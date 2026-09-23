@@ -2,14 +2,19 @@
 
 LangGraph agent that inspects a PCB image, classifies **fabrication defects**, retrieves **public workmanship text**, and self-corrects when confidence is low.
 
-The repo today is a **Phase C** AOI agent: canonical DeepPCB classes, a YOLOv8n detector trained on the official split, template-diff self-correction, a public RAG corpus (NASA / ECSS / arXiv / Wikipedia + adapter pages) with defect-class metadata filtering, and stage-wise eval scripts. Read [docs/BUILD.md](docs/BUILD.md) for directory map, learning strategy, and eval protocol. Datasets: [docs/DATASETS.md](docs/DATASETS.md). Requirements: [vision_repair_agent_plan.md](vision_repair_agent_plan.md).
+The repo today is a **Phase C + E** AOI agent (Phase D pipeline built, awaiting FPIC data): canonical DeepPCB classes, a YOLOv8n detector trained on the official split, template-diff self-correction, a public RAG corpus (NASA / ECSS / arXiv / Wikipedia + adapter pages) with defect-class metadata filtering, and stage-wise eval scripts. Read [docs/BUILD.md](docs/BUILD.md) for directory map, learning strategy, and eval protocol. Datasets: [docs/DATASETS.md](docs/DATASETS.md). Requirements: [vision_repair_agent_plan.md](vision_repair_agent_plan.md).
 
 ### Current results
 
 | Stage | Gate | Measured |
 |---|---|---|
 | CV — YOLOv8n, DeepPCB official test (500) | mAP@0.5 ≥ 0.85 | **0.967** (val 0.987) |
-| RAG — `evals/rag_queries.jsonl` | Recall@5 ≥ 0.80 | **0.933** (MRR 0.469, 15 queries) |
+| RAG — `evals/rag_queries.jsonl` (34 queries, cross-encoder rerank) | Recall@5 ≥ 0.80 | **0.941** (MRR 0.865; dense-only 0.882 / 0.740) |
+| Self-correction A/B — DeepPCB test (500), template verification vs off | measure | mAP 0.940 → **0.950**, micro-F1 0.940 → 0.936, fully-correct images 68.4% → 70.8% |
+| Transfer — PKU-Market-PCB (693), no fine-tuning | measure | macro-F1 **0.024** (best of 5 preprocessings; does not transfer) |
+| OCR — FPIC designators | exact-match ≥ 0.70 | not measured (FPIC needs PhysicalDB registration) |
+| Diagnosis groundedness — 50 test images | ≥ 0.80 | not measured (needs `DEEPSEEK_API_KEY`) |
+| Persistence — sessions survive restart | pass | **pass** (real Postgres) |
 
 Numbers come from gitignored `evals/results/*.json`; rerun the commands under [Eval and data](#eval-and-data) to reproduce.
 
@@ -188,12 +193,18 @@ Phases, learning strategy, and metrics: [docs/BUILD.md](docs/BUILD.md).
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com/v1` | DeepSeek API base URL |
 | `DEEPSEEK_LLM_MODEL` | `deepseek-chat` | DeepSeek model for diagnosis |
 | `LOCAL_EMBEDDING_MODEL` | `all-MiniLM-L6-v2` | HuggingFace embedding model (downloaded on first run) |
+| `RAG_RERANKER` | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Cross-encoder that reranks FAISS candidates; `""` disables |
+| `RAG_FETCH_K` | `20` | FAISS candidates before class filter + rerank |
 | `DATABASE_URL` | — | Async PostgreSQL connection string |
 | `SYNC_DATABASE_URL` | — | Sync PostgreSQL connection string |
+| `PERSISTENCE_BACKEND` | `memory` | `memory` or `postgres` (checkpoints + session rows survive restart; needs `DATABASE_URL`) |
 | `CORPUS_DIR` | `./docs/corpus` | Directory for RAG documents |
 | `CV_BACKEND` | `heuristic` | `heuristic`, `template_diff`, or `yolo` (use `yolo` once `best.pt` exists; tests force `heuristic`) |
 | `YOLO_WEIGHTS` | `data/processed/deeppcb/weights/best.pt` | Path to Phase B detector weights |
-| `CONFIDENCE_THRESHOLD` | `0.75` | Below this, self-correction triggers |
+| `YOLO_CONF` | `0.55` | YOLO box operating point (val F1 sweep) |
+| `YOLO_CANDIDATE_CONF` | `0.4` | Lowest YOLO box kept as a candidate for template verification |
+| `CONFIDENCE_THRESHOLD` | `0.8` | Self-correct when the least confident candidate box is below this |
+| `TEMPLATE_MIN_COVERAGE` | `0.05` | Fraction of a box an absdiff blob must cover to verify it |
 | `MAX_CORRECTION_RETRIES` | `3` | Max template-diff / OCR re-query retries |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
 

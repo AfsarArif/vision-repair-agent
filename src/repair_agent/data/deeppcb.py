@@ -198,16 +198,43 @@ def image_size(path: Path, fallback: int = 640) -> tuple[int, int]:
         return fallback, fallback
 
 
+def gold_row(stem: str, out: Path, split: str, boxes: list[dict]) -> dict:
+    return {
+        "image_id": stem,
+        "image": str(out / "images" / split / f"{stem}.jpg"),
+        "template": str(out / "templates" / split / f"{stem}_temp.jpg"),
+        "split": f"deeppcb_{split}",
+        "boxes": boxes,
+    }
+
+
+def write_gold(splits: dict[str, list[Pair]], out: Path, names: tuple[str, ...] = ("val", "test")) -> dict[str, Path]:
+    """Write `gold_{split}.jsonl` for eval. Does not touch images, labels, or weights."""
+    paths: dict[str, Path] = {}
+    out.mkdir(parents=True, exist_ok=True)
+    for split in names:
+        path = out / f"gold_{split}.jsonl"
+        with path.open("w", encoding="utf-8") as handle:
+            for test, _template, ann in splits.get(split, []):
+                row = gold_row(test_stem(test), out, split, parse_annotation(ann))
+                handle.write(json.dumps(row) + "\n")
+        paths[split] = path
+    return paths
+
+
 def export_splits(
     splits: dict[str, list[Pair]],
     out: Path,
     fallback_size: int = 640,
 ) -> Path:
-    """Write YOLO image/label folders, templates, yaml, and test gold JSONL."""
+    """Write YOLO image/label folders, templates, yaml, and val/test gold JSONL.
+
+    Wipes `out` first (including any weights copied there). Use `write_gold`
+    to refresh gold files only.
+    """
     if out.exists():
         shutil.rmtree(out)
 
-    gold_test: list[dict] = []
     for split, items in splits.items():
         img_dir = out / "images" / split
         label_dir = out / "labels" / split
@@ -227,20 +254,6 @@ def export_splits(
             (label_dir / f"{stem}.txt").write_text(
                 "\n".join(yolo_lines) + ("\n" if yolo_lines else "")
             )
-            if split == "test":
-                gold_test.append(
-                    {
-                        "image_id": stem,
-                        "image": str(dest_img),
-                        "template": str(dest_temp),
-                        "split": "deeppcb_test",
-                        "boxes": boxes,
-                    }
-                )
 
     write_yaml(out)
-    gold_path = out / "gold_test.jsonl"
-    with gold_path.open("w", encoding="utf-8") as handle:
-        for row in gold_test:
-            handle.write(json.dumps(row) + "\n")
-    return gold_path
+    return write_gold(splits, out)["test"]

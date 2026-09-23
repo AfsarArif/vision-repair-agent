@@ -182,6 +182,66 @@ def _voc_ap(recalls: list[float], precisions: list[float]) -> float:
     return ap
 
 
+def detection_prf(
+    predictions_by_image: dict[str, list[dict]],
+    ground_truth_by_image: dict[str, list[dict]],
+    iou_threshold: float = 0.5,
+    classes: list[str] | tuple[str, ...] | None = None,
+) -> dict:
+    """Per-class precision / recall / F1 at a fixed operating point, plus macro-F1.
+
+    Boxes are xyxy. Matching is class-aware and greedy by IoU per image. When
+    `classes` is given, predictions and gold outside that set are ignored (use
+    this to score only the classes two datasets share).
+    """
+    keep = set(classes) if classes is not None else None
+    counts: dict[str, dict[str, int]] = defaultdict(lambda: {"tp": 0, "fp": 0, "fn": 0})
+    for image_id in set(predictions_by_image) | set(ground_truth_by_image):
+        preds = [
+            p for p in predictions_by_image.get(image_id, [])
+            if keep is None or p.get("cls") in keep
+        ]
+        gts = [
+            g for g in ground_truth_by_image.get(image_id, [])
+            if keep is None or g.get("cls") in keep
+        ]
+        matches = greedy_match(preds, gts, iou_threshold=iou_threshold, class_aware=True)
+        matched_p = {pi for pi, _, _ in matches}
+        matched_g = {gi for _, gi, _ in matches}
+        for pi, pred in enumerate(preds):
+            counts[str(pred.get("cls"))]["tp" if pi in matched_p else "fp"] += 1
+        for gi, gt in enumerate(gts):
+            if gi not in matched_g:
+                counts[str(gt.get("cls"))]["fn"] += 1
+
+    per_class: dict[str, dict[str, float]] = {}
+    for cls in sorted(keep if keep is not None else counts):
+        c = counts[cls]
+        precision = c["tp"] / (c["tp"] + c["fp"]) if c["tp"] + c["fp"] else 0.0
+        recall = c["tp"] / (c["tp"] + c["fn"]) if c["tp"] + c["fn"] else 0.0
+        f1 = 2 * precision * recall / (precision + recall) if precision + recall else 0.0
+        per_class[cls] = {
+            "precision": round(precision, 4),
+            "recall": round(recall, 4),
+            "f1": round(f1, 4),
+            **c,
+        }
+    macro = sum(v["f1"] for v in per_class.values()) / len(per_class) if per_class else 0.0
+    tp = sum(v["tp"] for v in per_class.values())
+    fp = sum(v["fp"] for v in per_class.values())
+    fn = sum(v["fn"] for v in per_class.values())
+    micro_p = tp / (tp + fp) if tp + fp else 0.0
+    micro_r = tp / (tp + fn) if tp + fn else 0.0
+    micro_f1 = 2 * micro_p * micro_r / (micro_p + micro_r) if micro_p + micro_r else 0.0
+    return {
+        "per_class": per_class,
+        "macro_f1": round(macro, 4),
+        "micro_f1": round(micro_f1, 4),
+        "micro_precision": round(micro_p, 4),
+        "micro_recall": round(micro_r, 4),
+    }
+
+
 def recall_at_k(retrieved_ids: list[str], expected_ids: list[str], k: int = 5) -> float:
     """Fraction of expected source ids found in the top-k retrieved ids."""
     if not expected_ids:

@@ -13,3 +13,22 @@
 {"id": "q-ecss-assembly", "query": "High reliability SMT assembly workmanship accept reject criteria solder joints", "expected_source_ids": ["ecss-q-st-70-61c"], "defect_class": "short", "k": 5}
 {"id": "q-nasa-esd", "query": "NASA workmanship standard ESD handling implementation for electronic assemblies", "expected_source_ids": ["nasa-std-8739.6b"], "k": 5}
 {"id": "q-rework", "query": "Electronics rework disposition scrap versus repair printed circuit board", "expected_source_ids": ["wikipedia-rework_(electronics)"], "k": 5}
+{"id": "q-open-para", "query": "Copper conductor severed so two pads that should connect read infinite resistance", "expected_source_ids": ["adapter-open"], "defect_class": "open", "k": 5}
+{"id": "q-short-para", "query": "Two neighbouring conductors bridged by leftover copper after etching", "expected_source_ids": ["adapter-short"], "defect_class": "short", "k": 5}
+{"id": "q-mousebite-para", "query": "Small bite-shaped notch eaten out of the side of a conductor reducing its width", "expected_source_ids": ["adapter-mousebite"], "defect_class": "mousebite", "k": 5}
+{"id": "q-spur-para", "query": "Thin copper whisker sticking out of a conductor toward the adjacent spacing", "expected_source_ids": ["adapter-spur"], "defect_class": "spur", "k": 5}
+{"id": "q-copper-para", "query": "Stray copper fragment left on the laminate not connected to any circuit", "expected_source_ids": ["adapter-spurious_copper"], "defect_class": "spurious_copper", "k": 5}
+{"id": "q-pinhole-para", "query": "Tiny void punched through a copper pad or conductor", "expected_source_ids": ["adapter-pin_hole"], "defect_class": "pin_hole", "k": 5}
+{"id": "q-flying-probe", "query": "Fixtureless electrical test with probes moved over the board for low volume production", "expected_source_ids": ["wikipedia-printed_circuit_board_manufacturing"], "defect_class": "open", "k": 5}
+{"id": "q-etch", "query": "Etching removes unwanted copper not protected by the mask during patterning", "expected_source_ids": ["wikipedia-printed_circuit_board_manufacturing"], "defect_class": "spurious_copper", "k": 5}
+{"id": "q-deeppcb-template", "query": "Detect defects from a defect-free template and tested image pair using group pyramid pooling", "expected_source_ids": ["arxiv-1902.06197"], "defect_class": "short", "k": 5}
+{"id": "q-deeppcb-map", "query": "Reported mAP and frames per second of the PCB defect detector on its own dataset", "expected_source_ids": ["arxiv-1902.06197"], "defect_class": "open", "k": 5}
+{"id": "q-pku-synth", "query": "Defects synthesized with Photoshop on cropped board images, 3 to 5 defects of one category per image", "expected_source_ids": ["arxiv-1901.08204"], "defect_class": "missing_hole", "k": 5}
+{"id": "q-coating-bubbles", "query": "Conformal coating bubbles, scratches and thickness inspection", "expected_source_ids": ["nasa-std-8739.1b"], "defect_class": "pin_hole", "k": 5}
+{"id": "q-staking", "query": "Staking material requirements and keep-out areas documented in the layout", "expected_source_ids": ["nasa-std-8739.1b"], "k": 5}
+{"id": "q-magnification", "query": "Inspection magnification systems must render true colors and proportional dimensions", "expected_source_ids": ["nasa-std-8739.6b"], "k": 5}
+{"id": "q-dewetting", "query": "Solder that has not adhered intimately with an abrupt boundary to the conductor", "expected_source_ids": ["ecss-q-st-70-61c"], "defect_class": "short", "k": 5}
+{"id": "q-pth", "query": "Through-hole components mounted in plated through holes and body standoff distance", "expected_source_ids": ["ecss-q-st-70-61c"], "defect_class": "open", "k": 5}
+{"id": "q-soldermask-lpi", "query": "Liquid photoimageable versus dry-film solder mask application", "expected_source_ids": ["wikipedia-solder_mask"], "defect_class": "spurious_copper", "k": 5}
+{"id": "q-coating-materials", "query": "Acrylic, silicone, urethane and parylene protective coatings over assemblies", "expected_source_ids": ["wikipedia-conformal_coating"], "defect_class": "pin_hole", "k": 5}
+{"id": "q-eutectic", "query": "63/37 tin-lead alloy used as solder filler in electronics", "expected_source_ids": ["wikipedia-soldering"], "defect_class": "open", "k": 5}
