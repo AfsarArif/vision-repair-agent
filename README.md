@@ -2,7 +2,16 @@
 
 LangGraph agent that inspects a PCB image, classifies **fabrication defects**, retrieves **public workmanship text**, and self-corrects when confidence is low.
 
-The repo today is a **Phase B** AOI agent: canonical DeepPCB classes, a YOLOv8n detector trained on the official split, template-diff self-correction, adapter corpus, eval scripts. Read [docs/BUILD.md](docs/BUILD.md) for directory map, learning strategy, and eval protocol. Datasets: [docs/DATASETS.md](docs/DATASETS.md). Requirements: [vision_repair_agent_plan.md](vision_repair_agent_plan.md).
+The repo today is a **Phase C** AOI agent: canonical DeepPCB classes, a YOLOv8n detector trained on the official split, template-diff self-correction, a public RAG corpus (NASA / ECSS / arXiv / Wikipedia + adapter pages) with defect-class metadata filtering, and stage-wise eval scripts. Read [docs/BUILD.md](docs/BUILD.md) for directory map, learning strategy, and eval protocol. Datasets: [docs/DATASETS.md](docs/DATASETS.md). Requirements: [vision_repair_agent_plan.md](vision_repair_agent_plan.md).
+
+### Current results
+
+| Stage | Gate | Measured |
+|---|---|---|
+| CV — YOLOv8n, DeepPCB official test (500) | mAP@0.5 ≥ 0.85 | **0.967** (val 0.987) |
+| RAG — `evals/rag_queries.jsonl` | Recall@5 ≥ 0.80 | **0.933** (MRR 0.469, 15 queries) |
+
+Numbers come from gitignored `evals/results/*.json`; rerun the commands under [Eval and data](#eval-and-data) to reproduce.
 
 ## Architecture
 
@@ -156,9 +165,9 @@ poetry run pytest tests/integration/ -v
 # Template-diff IoU on generated pairs (no download)
 make eval
 
-# Public PDFs + Wikipedia extracts (gitignored)
+# Phase C: public PDFs + Wikipedia extracts (gitignored), rebuilt index, Recall@5
 poetry run python scripts/download_public_data.py --corpus --wikipedia
-poetry run python scripts/ingest_corpus.py
+poetry run python scripts/ingest_corpus.py --rebuild
 poetry run python evals/run_eval.py --stage rag
 
 # Phase B detector
@@ -182,7 +191,7 @@ Phases, learning strategy, and metrics: [docs/BUILD.md](docs/BUILD.md).
 | `DATABASE_URL` | — | Async PostgreSQL connection string |
 | `SYNC_DATABASE_URL` | — | Sync PostgreSQL connection string |
 | `CORPUS_DIR` | `./docs/corpus` | Directory for RAG documents |
-| `CV_BACKEND` | `heuristic` | `heuristic`, `template_diff`, or `yolo` |
+| `CV_BACKEND` | `heuristic` | `heuristic`, `template_diff`, or `yolo` (use `yolo` once `best.pt` exists; tests force `heuristic`) |
 | `YOLO_WEIGHTS` | `data/processed/deeppcb/weights/best.pt` | Path to Phase B detector weights |
 | `CONFIDENCE_THRESHOLD` | `0.75` | Below this, self-correction triggers |
 | `MAX_CORRECTION_RETRIES` | `3` | Max template-diff / OCR re-query retries |
