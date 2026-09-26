@@ -2,7 +2,7 @@
 
 LangGraph agent that inspects a PCB image, classifies **fabrication defects**, retrieves **public workmanship text**, and self-corrects when confidence is low.
 
-The repo today is a **Phase C + E** AOI agent (Phase D pipeline built, awaiting FPIC data): canonical DeepPCB classes, a YOLOv8n detector trained on the official split, template-diff self-correction, a public RAG corpus (NASA / ECSS / arXiv / Wikipedia + adapter pages) with defect-class metadata filtering, and stage-wise eval scripts. Read [docs/BUILD.md](docs/BUILD.md) for directory map, learning strategy, and eval protocol. Datasets: [docs/DATASETS.md](docs/DATASETS.md). Requirements: [vision_repair_agent_plan.md](vision_repair_agent_plan.md).
+The repo today is a **Phase C + E** AOI agent (Phases A, B, C and E pass their gates; the Phase D OCR pipeline is built but its gate is blocked on FPIC data): canonical DeepPCB classes, a YOLOv8n detector trained on the official split, template-diff self-correction, a public RAG corpus (NASA / ECSS / arXiv / Wikipedia + adapter pages) with defect-class metadata filtering, and stage-wise eval scripts. Read [docs/BUILD.md](docs/BUILD.md) for directory map, learning strategy, and eval protocol. Datasets: [docs/DATASETS.md](docs/DATASETS.md). Requirements: [vision_repair_agent_plan.md](vision_repair_agent_plan.md).
 
 ### Current results
 
@@ -32,7 +32,7 @@ Numbers come from gitignored `evals/results/*.json`; rerun the commands under [E
 │        │               │              │              │          │
 │        └───────────────┴──────────────┴──────────────┘          │
 │                      Shared Agent State                         │
-│              (MemorySaver today; Postgres optional)             │
+│   (MemorySaver default; Postgres via PERSISTENCE_BACKEND)       │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -55,13 +55,13 @@ Numbers come from gitignored `evals/results/*.json`; rerun the commands under [E
 | Computer Vision | OpenCV heuristic or template-diff; YOLO when weights exist |
 | OCR | Tesseract — designators (`R12`) plus legacy serial fixtures |
 | Vector Store | FAISS on disk (Postgres optional) |
-| State Persistence | In-memory MemorySaver (Postgres checkpointer optional) |
+| State Persistence | MemorySaver by default; `PERSISTENCE_BACKEND=postgres` → LangGraph `AsyncPostgresSaver` + `diagnostic_sessions` rows |
 | API Layer | FastAPI |
 
 ## Prerequisites
 
 - **Python 3.11+** with Poetry
-- **Docker** (optional — only if you want Postgres/pgvector; the API runs with in-memory checkpointing and FAISS)
+- **Docker** (optional — only for Postgres persistence; the API runs with in-memory checkpointing and FAISS by default)
 - **Tesseract OCR** installed locally:
   ```bash
   # macOS
@@ -89,18 +89,17 @@ poetry install
 cp .env.example .env
 # Edit .env with your DEEPSEEK_API_KEY
 
-# 4. Start PostgreSQL with pgvector
-make up
-
-# 5. Run database migrations
-make migrate
+# 4. (Optional) Start PostgreSQL and run migrations — only for PERSISTENCE_BACKEND=postgres
+make up          # POSTGRES_PORT=5433 make up if 5432 is taken; match DATABASE_URL
+make migrate     # alembic 001 → 002
 
 # 6. Seed test corpus (for development)
 poetry run python scripts/seed_test_docs.py
 make ingest
 
 # 7. Start the API server
-make run
+make run            # in-memory sessions (lost on restart)
+make run-postgres   # sessions + checkpoints persisted in Postgres
 ```
 
 The API is now available at `http://localhost:8000`.
@@ -112,22 +111,39 @@ API docs: `http://localhost:8000/docs`
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/diagnose \
-  -F "file=@path/to/hardware_image.png"
+  -F "file=@path/to/test_image.jpg" \
+  -F "template=@path/to/template_image.jpg"   # optional; enables template verification
 ```
 
 **Response:**
 ```json
 {
   "session_id": "550e8400-e29b-41d4-a716-446655440000",
-      "diagnosis": "## Defect Classification\nOpen circuit on copper trace...",
-      "defect_type": "open",
-      "defect_confidence": 0.87,
-      "serial_number": "R12",
+  "diagnosis": "## Defect Classification\nOpen circuit on copper trace...",
+  "defect_type": "open",
+  "defect_confidence": 0.87,
+  "serial_number": null,
+  "designator": null,
+  "correction_mode": "template_diff",
+  "detections": [{"cls": "open", "bbox": [412, 118, 441, 150], "score": 0.87}],
   "self_correction_triggered": true,
   "correction_attempts": 1,
-  "rag_documents_used": 5
+  "rag_documents_used": 5,
+  "cv_backend": "yolo",
+  "template_provided": true,
+  "persistence_backend": "memory"
 }
 ```
+
+Every call writes a session row (image/template SHA-256, detections, status). Failures are stored with `status=failed` and return the id in the `X-Session-Id` header.
+
+### Fetch a session
+
+```bash
+curl http://localhost:8000/api/v1/sessions/550e8400-e29b-41d4-a716-446655440000
+```
+
+Returns the stored row plus a `checkpoint` summary of the final LangGraph state (thread id = session id), or 404. With `PERSISTENCE_BACKEND=memory`, sessions disappear on restart; with `postgres`, they survive it.
 
 ### Health check
 
@@ -162,6 +178,9 @@ poetry run pytest tests/unit/ -v
 
 # Integration tests only
 poetry run pytest tests/integration/ -v
+
+# Persistence against real Postgres (skips if unreachable; needs make up + make migrate)
+make test-persistence
 ```
 
 ## Eval and data
@@ -181,6 +200,25 @@ poetry run python scripts/download_public_data.py --deeppcb
 poetry run python scripts/prepare_deeppcb.py
 poetry run python scripts/train_detector.py --run
 poetry run python evals/run_eval.py --stage cv --backend yolo --ultralytics-val
+
+# Threshold sweep (val only) and self-correction A/B (template verification on vs off)
+poetry run python scripts/prepare_deeppcb.py --gold-only
+poetry run python evals/run_eval.py --stage sweep
+poetry run python evals/run_eval.py --stage ab --limit 0        # 0 = all 500 test images
+
+# Transfer: PKU-Market-PCB holdout, no fine-tuning (academic-use data, never trained on)
+poetry run python -c "from huggingface_hub import snapshot_download; snapshot_download('RobotHuman/PCB_defect', repo_type='dataset', local_dir='data/raw/pku_pcb')"
+poetry run python scripts/prepare_pku.py
+poetry run python evals/run_eval.py --stage transfer --preprocess all
+
+# Diagnosis groundedness (needs DEEPSEEK_API_KEY; --no-judge skips the LLM judge)
+poetry run python evals/run_eval.py --stage diagnosis --limit 50
+
+# Phase D — designator OCR (blocked until FPIC is downloaded; see docs/BUILD.md)
+# Register at PhysicalDB, unzip pcb_image.zip + ocr_annotation.zip into data/raw/fpic/
+poetry run python scripts/prepare_fpic.py
+poetry run python evals/run_eval.py --stage ocr --split dev     # tune on dev only
+poetry run python evals/run_eval.py --stage ocr --split test    # report once
 ```
 
 Phases, learning strategy, and metrics: [docs/BUILD.md](docs/BUILD.md).
