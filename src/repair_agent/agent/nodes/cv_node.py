@@ -1,6 +1,9 @@
-"""Computer Vision node for defect detection in hardware images."""
+"""Computer Vision node: heuristic, template-diff, or YOLO backend."""
 
-from repair_agent.agent.state import AgentState
+from typing import Never
+
+from repair_agent.agent.state import AgentState, Detection
+from repair_agent.config import settings
 from repair_agent.tools.cv_tools import (
     crop_region,
     decode_image,
@@ -9,51 +12,105 @@ from repair_agent.tools.cv_tools import (
     classify_defect_heuristic,
     estimate_confidence,
 )
+from repair_agent.tools.template_diff import localize_defects
+from repair_agent.tools.yolo_detector import detect_yolo, resolve_weights
 
 
-async def cv_node(state: AgentState) -> dict:
-    """Process input image through CV pipeline.
+def _empty_normal(backend: str = "heuristic") -> dict:
+    return {
+        "defect_type": "normal",
+        "defect_confidence": 0.95,
+        "defect_bbox": None,
+        "cropped_image_bytes": None,
+        "detections": [],
+        "candidate_detections": [],
+        "min_confidence": 0.95,
+        "cv_backend": backend,
+    }
 
-    Flow:
-    1. Decode image bytes
-    2. Preprocess (grayscale → blur → threshold)
-    3. Find defect contours
-    4. Classify defect type
-    5. Estimate confidence
-    6. Crop the largest defect region for OCR
 
-    Args:
-        state: Current AgentState with image_bytes.
+def _from_detections(
+    img,
+    detections: list[Detection],
+    backend: str,
+    candidates: list[Detection] | None = None,
+) -> dict:
+    candidates = detections if candidates is None else candidates
+    if not detections and not candidates:
+        return _empty_normal(backend)
+    min_conf = min(float(d.get("score") or 0.0) for d in candidates) if candidates else 0.95
+    if not detections:
+        # Only sub-threshold boxes: report normal but let the gate see them.
+        return {**_empty_normal(backend), "candidate_detections": candidates, "min_confidence": min_conf}
+    ranked = sorted(detections, key=lambda d: float(d.get("score") or 0.0), reverse=True)
+    top = ranked[0]
+    bbox = top["bbox"]
+    cls = top.get("cls") or "short"
+    cropped = crop_region(img, bbox)
+    return {
+        "defect_type": cls,
+        "defect_confidence": float(top.get("score") or 0.0),
+        "defect_bbox": bbox,
+        "cropped_image_bytes": cropped,
+        "detections": ranked,
+        "candidate_detections": candidates,
+        "min_confidence": min_conf,
+        "cv_backend": backend,
+    }
 
-    Returns:
-        dict with defect_type, defect_confidence, defect_bbox, cropped_image_bytes.
-    """
-    img = decode_image(state["image_bytes"])
+
+def _heuristic_pipeline(img) -> dict:
     height, width = img.shape[:2]
-    total_area = height * width
-
     thresh = preprocess_for_contour_detection(img)
     contour_results = find_defect_contours(thresh)
-
     if not contour_results:
-        return {
-            "defect_type": "normal",
-            "defect_confidence": 0.95,
-            "defect_bbox": None,
-            "cropped_image_bytes": None,
-        }
+        return _empty_normal("heuristic")
 
-    # Process largest defect contour
     largest_contour = max(contour_results, key=lambda r: r[1][2] * r[1][3])
     contour, bbox = largest_contour
-
     defect_type = classify_defect_heuristic(img, contour, bbox)
-    confidence = estimate_confidence([c for c, _ in contour_results], total_area)
-    cropped_bytes = crop_region(img, bbox)
-
+    confidence = estimate_confidence([c for c, _ in contour_results], height * width)
+    detections: list[Detection] = [
+        {"cls": defect_type, "bbox": bbox, "score": confidence}
+    ]
     return {
         "defect_type": defect_type,
         "defect_confidence": confidence,
         "defect_bbox": bbox,
-        "cropped_image_bytes": cropped_bytes,
+        "cropped_image_bytes": crop_region(img, bbox),
+        "detections": detections,
+        "candidate_detections": detections,
+        "min_confidence": confidence,
+        "cv_backend": "heuristic",
     }
+
+
+async def cv_node(state: AgentState) -> dict:
+    """Detect defects using the configured CV backend."""
+    img = decode_image(state["image_bytes"])
+    backend = settings.CV_BACKEND
+    template_bytes = state.get("template_image_bytes")
+
+    if backend == "heuristic":
+        return _heuristic_pipeline(img)
+
+    if backend == "template_diff":
+        if not template_bytes:
+            return _heuristic_pipeline(img)
+        template = decode_image(template_bytes)
+        detections = localize_defects(img, template)
+        return _from_detections(img, detections, "template_diff")
+
+    if backend == "yolo":
+        weights = resolve_weights(settings.YOLO_WEIGHTS or None)
+        if weights is None:
+            return _heuristic_pipeline(img)
+        try:
+            candidates = detect_yolo(img, str(weights), conf=settings.YOLO_CANDIDATE_CONF)
+        except (FileNotFoundError, ImportError):
+            return _heuristic_pipeline(img)
+        detections = [d for d in candidates if d["score"] >= settings.YOLO_CONF]
+        return _from_detections(img, detections, "yolo", candidates=candidates)
+
+    _exhaustive: Never = backend
+    raise ValueError(f"Unknown CV backend: {_exhaustive}")

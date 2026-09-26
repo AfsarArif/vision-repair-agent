@@ -1,4 +1,3 @@
-version: "3.9"
 services:
   postgres:
     image: pgvector/pgvector:pg16
@@ -7,7 +6,7 @@ services:
       POSTGRES_PASSWORD: repair_agent
       POSTGRES_DB: repair_agent_db
     ports:
-      - "5432:5432"
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

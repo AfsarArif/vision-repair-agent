@@ -15,7 +15,7 @@ class TestRAGNodeQuery:
         }
         query = _build_query(state)
         assert "burn_mark" in query
-        assert "serial" not in query.lower()
+        assert "designator" not in query.lower()
 
     def test_build_query_with_serial(self):
         state = {

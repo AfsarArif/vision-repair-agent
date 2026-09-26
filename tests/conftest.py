@@ -8,7 +8,16 @@ import cv2
 import numpy as np
 import pytest
 
-from repair_agent.agent.state import AgentState
+from repair_agent.agent.state import AgentState, initial_agent_state
+from repair_agent.config import settings
+
+
+@pytest.fixture(autouse=True)
+def _force_heuristic_cv(monkeypatch):
+    """Keep unit tests on the heuristic backend even if .env sets CV_BACKEND=yolo."""
+    monkeypatch.setattr(settings, "CV_BACKEND", "heuristic")
+    # No cross-encoder download in unit tests; test_rag_retriever covers rerank().
+    monkeypatch.setattr(settings, "RAG_RERANKER", "")
 
 
 def create_test_image(
@@ -131,19 +140,4 @@ def serial_number_image_bytes() -> bytes:
 @pytest.fixture
 def base_state(burn_mark_image_bytes) -> AgentState:
     """Return a minimal AgentState for testing."""
-    return {
-        "image_bytes": burn_mark_image_bytes,
-        "image_path": None,
-        "defect_type": None,
-        "defect_confidence": None,
-        "defect_bbox": None,
-        "cropped_image_bytes": None,
-        "serial_number": None,
-        "ocr_confidence": None,
-        "rag_documents": None,
-        "rag_query": None,
-        "diagnosis": None,
-        "correction_attempts": 0,
-        "self_correction_triggered": False,
-        "messages": [],
-    }
+    return initial_agent_state(burn_mark_image_bytes)

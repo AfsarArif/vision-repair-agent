@@ -11,8 +11,19 @@ from repair_agent.db.models import Base
 # Alembic Config object
 config = context.config
 
-# Override sqlalchemy.url with the sync database URL from settings
-config.set_main_option("sqlalchemy.url", settings.SYNC_DATABASE_URL)
+# Override sqlalchemy.url with the sync database URL from settings. If only DATABASE_URL
+# (asyncpg) is set, derive a psycopg sync URL from it. Falls back to alembic.ini.
+_url = settings.SYNC_DATABASE_URL
+if not _url and settings.DATABASE_URL:
+    from sqlalchemy.engine import make_url
+
+    _url = (
+        make_url(settings.DATABASE_URL)
+        .set(drivername="postgresql+psycopg")
+        .render_as_string(hide_password=False)
+    )
+if _url:
+    config.set_main_option("sqlalchemy.url", _url.replace("%", "%%"))
 
 # Set up logging
 if config.config_file_name is not None:

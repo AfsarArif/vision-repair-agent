@@ -15,6 +15,7 @@ venv/
 
 # FAISS index
 .faiss_index/
+docs/corpus/.ingestion_log.json
 .ingestion_log.json
 
 # Claude
@@ -42,3 +43,15 @@ pgdata/
 .ruff_cache/
 htmlcov/
 .coverage
+
+# Downloaded public datasets and PDFs (see docs/DATASETS.md)
+data/raw/
+data/processed/
+docs/corpus/pdfs/
+docs/corpus/wikipedia/
+evals/results/*.json
+
+# Ultralytics COCO init weights downloaded at train time
+yolov8*.pt
+yolo11*.pt
+runs/

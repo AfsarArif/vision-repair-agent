@@ -1,5 +1,7 @@
 """Diagnosis synthesis node using DeepSeek to produce a structured diagnostic report."""
 
+from pathlib import Path
+
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 
@@ -16,9 +18,11 @@ def _format_docs(state: AgentState) -> str:
 
     formatted = []
     for d in rag_docs:
-        source = d.get("metadata", {}).get("source", "unknown")
+        meta = d.get("metadata", {})
+        source = meta.get("source", "unknown")
+        source_id = meta.get("source_id") or Path(str(source)).stem
         content = d.get("content", "")
-        formatted.append(f"[Doc: {source}]\n{content}")
+        formatted.append(f"[{source_id}] ({Path(str(source)).name})\n{content}")
 
     return "\n\n".join(formatted)
 
@@ -54,9 +58,12 @@ async def diagnosis_node(state: AgentState) -> dict:
 
     user_message = DIAGNOSIS_USER_TEMPLATE.format(
         defect_type=state.get("defect_type", "unknown"),
-        defect_confidence=state.get("defect_confidence", 0.0),
-        serial_number=state.get("serial_number", "not detected"),
+        defect_confidence=state.get("defect_confidence", 0.0) or 0.0,
+        serial_number=state.get("designator")
+        or state.get("serial_number")
+        or "not detected",
         self_correction_triggered=state.get("self_correction_triggered", False),
+        correction_mode=state.get("correction_mode") or "none",
         correction_attempts=state.get("correction_attempts", 0),
         docs_text=docs_text,
     )

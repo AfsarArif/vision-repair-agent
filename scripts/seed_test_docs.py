@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Seed a minimal test corpus for CI and local development."""
+"""Seed a minimal test corpus for CI and local development.
+
+These five files are stubs so ingest + unit tests run without downloading NASA/ESA
+PDFs. They are not the production RAG corpus. See docs/DATASETS.md.
+"""
 
 import sys
 from pathlib import Path
